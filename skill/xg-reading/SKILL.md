@@ -56,6 +56,7 @@ Create one source-grounded Chinese DOCX that reconstructs how a life-science pap
 ## Formatting
 
 - Preserve the retained black academic layout and non-collapsible custom styles.
+- Preserve the retained section order: field positioning and the paper's problem first, then the full-paper figure/table logic chain, then limitations and trend judgment, and only then the detailed figure/table evidence blocks. Do not reorder these sections for convenience or add a new opening background section.
 - Use 华文中宋 for Chinese and Times New Roman for English and numbers.
 - Keep body text justified with the spacing and hierarchy in `references/style-contract.md`.
 - Keep complete figure captions with their figures and integrate supporting material under the relevant main figure.
