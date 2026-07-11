@@ -1,0 +1,43 @@
+name: validate-skill
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Compile deterministic builders
+        run: |
+          python -m py_compile \
+            skill/xg-reading/scripts/build_reader_docx.py \
+            skill/xg-reading/scripts/audit_reader_docx.py
+      - name: Verify retained template hash and required files
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          root = Path("skill/xg-reading")
+          required = [
+              root / "SKILL.md",
+              root / "agents/openai.yaml",
+              root / "artifact-template.json",
+              root / "assets/reference.docx",
+              root / "assets/preview.png",
+          ]
+          missing = [str(path) for path in required if not path.exists()]
+          if missing:
+              raise SystemExit(f"Missing required files: {missing}")
+
+          expected = "A1EE0C4F7B46F20A8CA3EBFFE2224157E09FA0929A1F1DC02EC822CF6E2F8BB8"
+          actual = hashlib.sha256((root / "assets/reference.docx").read_bytes()).hexdigest().upper()
+          if actual != expected:
+              raise SystemExit(f"Template hash mismatch: {actual}")
+          PY

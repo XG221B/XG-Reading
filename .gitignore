@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.tmp
+*.log
+*.pdf
+*.mp4
+*.mov
+*.avi
+*.pages
+rendered/
+output/
+tmp/
+.DS_Store
+Thumbs.db
+~$*.docx

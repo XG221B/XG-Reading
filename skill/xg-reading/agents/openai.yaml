@@ -1,0 +1,7 @@
+interface:
+  display_name: "XG-Reading"
+  short_description: "深度逐图解读生物论文并生成中文Word文档"
+  icon_large: "./assets/preview.png"
+  default_prompt: "Use $xg-reading to reconstruct this life-science paper's claim-to-evidence chain and create a deeply sourced Chinese Word reader."
+policy:
+  allow_implicit_invocation: true
