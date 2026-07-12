@@ -1,5 +1,7 @@
 # XG-Reading
 
+[中文](README.md) | [English](README_EN.md)
+
 XG-Reading是一个面向生命科学论文的深度精读Codex Skill。它以论文图表、实验设计和证据强度为核心，把分散在主文、图注、Methods和Supplementary Information中的信息重建为一条可以检查的论证链，并生成结构统一的中文Word文档。
 
 <p align="center">
@@ -43,8 +45,7 @@ XG-Reading先建立论文专属的claim-to-evidence map，再逐图写作，因�
 2. 整篇论文的图表逻辑链；
 3. 每张主图或主表的逐panel解读；
 4. 补充材料对主结论的支持；
-5. 文章不足与证据边界；
-6. 研究趋势及其科学价值。
+5. 可选的“未来展望”：仅整理作者在Discussion、Conclusion或明确的Future work中讨论过的局限、未解决问题或后续方向；若论文没有这类原文依据，则不生成该栏目。
 
 文档采用固定的中文学术阅读版式，并在生成后执行结构审计和逐页渲染检查。
 
@@ -81,7 +82,7 @@ Use $xg-reading to deeply read this life-science paper and create a Chinese Word
 也可以直接使用中文：
 
 ```text
-请结合主文和补充材料逐图精读这篇论文，梳理论证链、证据强度和局限性，并生成Word文档。
+请结合主文和补充材料逐图精读这篇论文，梳理论证链、证据强度，以及作者明确讨论过的未来方向，并生成Word文档。
 ```
 
 ## 建议输入
@@ -101,6 +102,6 @@ XG-Reading用于辅助科研阅读，不替代原始论文、同行评议或研�
 
 当前仓库尚未选择开源许可证。在没有许可证的情况下，默认保留相关权利。后续如需允许他人复制、修改或分发，可再选择合适的软件许可证。
 
-## English summary
+## English README
 
-XG-Reading is a depth-preserving Codex Skill for life-science paper reading. It reconstructs claim-to-evidence chains from figures, tables, methods, statistics, and supplementary materials, then produces a structured Chinese DOCX reader. The screenshots above use synthetic data and do not represent a real publication.
+See [README_EN.md](README_EN.md). The Skill continues to generate Chinese DOCX readers; the English README only documents the project for English-speaking readers.

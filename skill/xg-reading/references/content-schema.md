@@ -14,11 +14,8 @@ Write one UTF-8 JSON file. Image paths may be absolute or relative to the JSON d
   "logic_chain": [
     {"title": "Step1：为什么需要这一步", "text": "对应Fig.1或Table 1。实验与结果。"}
   ],
-  "limitations": [
-    {"title": "第一，具体证据边界。", "text": "对应Figure、panel、模型或缺失对照。"}
-  ],
-  "trends": [
-    {"title": "第一，本文直接体现的趋势。", "text": "依据与价值。"}
+  "future_outlook": [
+    {"title": "第一，作者明确提出的未解决问题。", "text": "注明Discussion、Conclusion或Future work中的原文依据，并用中文说明其含义。"}
   ],
   "evidence_blocks": [
     {
@@ -45,7 +42,7 @@ Write one UTF-8 JSON file. Image paths may be absolute or relative to the JSON d
 - Require `document_title`, `citation`, `field_positioning.paragraphs`, `logic_chain`, and `evidence_blocks`.
 - For every evidence block require `title`, `image`, `paper_claim`, `panel_explanations`, and `logic_role`.
 - Set `kind` to `figure`, `table`, `conceptual_figure`, or another precise label.
-- `limitations`, `trends`, `support_text`, `support_images`, and `bullet_notes` are optional.
+- `future_outlook`, `support_text`, `support_images`, and `bullet_notes` are optional.
 - Use empty arrays when optional evidence is absent. Never invent missing supplements.
 
 ## Content rules
@@ -54,8 +51,7 @@ Write one UTF-8 JSON file. Image paths may be absolute or relative to the JSON d
 - Make each logic step explain why the next evidence is needed, what was done, what was observed, and what claim is supported.
 - Preserve every main panel. Merge panels only when they form one indivisible experiment.
 - Use complete figure or table images with their complete captions or notes. State uncertainty if the source cannot be recovered clearly.
-- Tie every limitation to an exact evidence block, model, comparison, analysis choice, or missing validation.
-- Separate trends shown directly by the paper from forecasts.
+- Create `future_outlook` only from a limitation, unresolved question, or next direction explicitly discussed by the authors in the Discussion, Conclusion, or stated future work. Cite the relevant source location in the text. Do not add the reader's own criticism, forecast, or proposed experiment to this section.
 - Introduce necessary terms briefly in Chinese. Retain acronyms and proper nouns when they are more precise.
 - Do not add spaces at Chinese-English or Chinese-number boundaries.
 - Do not add personal questions, interview prompts, or proposed experiments unless requested.
