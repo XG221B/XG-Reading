@@ -14,10 +14,11 @@
 1. Begin with the paper title and citation.
 2. Establish the field-level direction, the problem already addressed by the field, the remaining problem, and the problem addressed by this paper.
 3. Present the paper-specific figure/table logic chain before detailed figure reading.
-4. Center each chapter-level heading, while keeping paragraph-level reading prompts left aligned.
-5. Start every evidence block on a new page with a one-sentence conclusion and a complete figure or table with caption.
-6. Follow with the authors' claim, panel-level reading, role in the argument, and relevant supplementary support.
-7. Keep supplementary evidence next to the main claim it changes.
+4. Add an optional “未来展望” only when it is grounded in the authors' Discussion, Conclusion, or stated future work; otherwise omit it.
+5. Center each chapter-level heading, while keeping paragraph-level reading prompts left aligned.
+6. Start every evidence block on a new page with a one-sentence conclusion and a complete figure or table with caption.
+7. Follow with the authors' claim, panel-level reading, role in the argument, and relevant supplementary support.
+8. Keep supplementary evidence next to the main claim it changes.
 
 ## Editable and preserved elements
 

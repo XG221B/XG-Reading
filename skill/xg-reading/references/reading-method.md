@@ -74,13 +74,13 @@ Integrate only material that changes confidence in the main claim: raw gates, un
 
 Prefer “supports”, “is consistent with”, and “suggests” unless the design directly excludes major alternatives.
 
-## 6. Critique precisely
+## 6. Preserve evidence boundaries without adding a critique chapter
 
-Tie each limitation to a Figure, panel, missing control, analysis decision, model boundary, or absent validation. Explain how the gap changes interpretation. Avoid generic statements such as “more research is needed”.
+Use model boundaries, alternative explanations, and missing validation to calibrate the interpretation of the relevant Figure or claim. Do not turn these internal checks into a standalone “文章不足” section.
 
-## 7. Infer trends cautiously
+## 7. Extract only author-grounded future outlook
 
-Separate trends directly embodied by the study from forecasts based on current methods or needs. Explain both scientific value and practical cost. Do not treat novelty, complexity, or multifunctionality as value by themselves.
+Create a “未来展望” section only when the authors explicitly discuss a limitation, unresolved question, or next direction in the Discussion, Conclusion, or stated future work. State the source location and explain it in Chinese. Do not add the reader's own forecast, criticism, or proposed experiment. Omit the section when no such source exists.
 
 ## 8. Source verification
 

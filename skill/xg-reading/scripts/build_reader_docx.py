@@ -421,8 +421,14 @@ def build_document(
         add_paragraph(document, clean_text(step.get("title")), STYLE_STEP)
         add_paragraph(document, clean_text(step.get("text")), STYLE_BODY)
 
-    add_named_items(document, "文章不足", data.get("limitations") or [])
-    add_named_items(document, "趋势判断", data.get("trends") or [])
+    future_outlook = data.get("future_outlook")
+    if future_outlook is None:
+        # Keep existing task JSON usable while adopting the single future-outlook section.
+        future_outlook = [
+            *(data.get("limitations") or []),
+            *(data.get("trends") or []),
+        ]
+    add_named_items(document, "未来展望", future_outlook)
 
     if work_dir is not None:
         work_dir = work_dir.resolve()

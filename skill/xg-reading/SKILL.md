@@ -59,7 +59,8 @@ Create one source-grounded Chinese DOCX that reconstructs how a life-science pap
 ## Formatting
 
 - Preserve the retained black academic layout and non-collapsible custom styles.
-- Preserve the retained section order: field positioning and the paper's problem first, then the full-paper figure/table logic chain, then limitations and trend judgment, and only then the detailed figure/table evidence blocks. Do not reorder these sections for convenience or add a new opening background section.
+- Preserve the retained section order: field positioning and the paper's problem first, then the full-paper figure/table logic chain, then an optional source-grounded future outlook, and only then the detailed figure/table evidence blocks. Do not reorder these sections for convenience or add a new opening background section.
+- Include “未来展望” only when the authors explicitly discuss a limitation, unresolved question, or next direction in the Discussion, Conclusion, or stated future work. Do not create a standalone limitations or trend-judgment section from the reader's own critique, and omit the section entirely when the source contains no such discussion.
 - Use 华文中宋 for Chinese and Times New Roman for English and numbers.
 - Keep body text justified with the spacing and hierarchy in `references/style-contract.md`.
 - Center only chapter-level section headings. Keep `Step` headings and paragraph-level prompts such as “图上如何体现：” left aligned.
