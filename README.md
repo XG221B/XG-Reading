@@ -52,11 +52,25 @@ XG-Reading先建立论文专属的claim-to-evidence map，再逐图写作，因�
 
 ## 安装
 
-将`skill/xg-reading`复制到个人Codex Skill目录：
+下载或克隆仓库后，在仓库根目录执行：
 
-```text
-~/.codex/skills/xg-reading
+```powershell
+.\install.ps1
 ```
+
+默认安装方式会在个人Codex Skill目录创建一个指向本仓库`skill/xg-reading`的目录链接。这样Skill的规则、脚本与仓库始终同步，论文产出也会自动回到仓库根目录的`outputs/`。已有同名Skill时，先备份本地修改，再显式运行：
+
+```powershell
+.\install.ps1 -ReplaceExisting
+```
+
+若不能使用目录链接，可复制安装并写入本地仓库路径配置：
+
+```powershell
+.\install.ps1 -Mode Copy -ReplaceExisting
+```
+
+`outputs/`是本地工作区，不会被Git提交。每篇论文在其中拥有独立文件夹，最终Word位于顶层，裁图、内容JSON、渲染页和审计报告位于`process/`。原始PDF、补充材料和视频不会被复制，来源路径和SHA-256会记录在`source-manifest.json`。
 
 重新打开Codex后可显式调用：
 

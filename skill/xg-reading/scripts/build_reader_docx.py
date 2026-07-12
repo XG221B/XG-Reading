@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import hashlib
 import json
 import re
@@ -46,6 +47,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--content", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--template", type=Path, default=DEFAULT_TEMPLATE)
+    parser.add_argument(
+        "--work-dir",
+        type=Path,
+        help="Optional durable directory for generated support-image sheets",
+    )
     return parser.parse_args()
 
 
@@ -367,7 +373,11 @@ def add_named_items(
 
 
 def build_document(
-    data: dict[str, Any], template: Path, content_dir: Path, output: Path
+    data: dict[str, Any],
+    template: Path,
+    content_dir: Path,
+    output: Path,
+    work_dir: Path | None = None,
 ) -> None:
     if template.resolve() == DEFAULT_TEMPLATE.resolve():
         actual_hash = sha256(template)
@@ -414,7 +424,14 @@ def build_document(
     add_named_items(document, "文章不足", data.get("limitations") or [])
     add_named_items(document, "趋势判断", data.get("trends") or [])
 
-    with tempfile.TemporaryDirectory(prefix="figure-evidence-") as temp_dir_raw:
+    if work_dir is not None:
+        work_dir = work_dir.resolve()
+        work_dir.mkdir(parents=True, exist_ok=True)
+        temp_context = nullcontext(work_dir)
+    else:
+        temp_context = tempfile.TemporaryDirectory(prefix="figure-evidence-")
+
+    with temp_context as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
         evidence_blocks = data.get("evidence_blocks") or data.get("figures") or []
         for index, figure_data in enumerate(evidence_blocks, start=1):
@@ -473,7 +490,13 @@ def main() -> None:
     if not isinstance(data, dict):
         raise ValueError("Content JSON must contain an object at the top level")
     validate_content(data)
-    build_document(data, template_path, content_path.parent, output_path)
+    build_document(
+        data,
+        template_path,
+        content_path.parent,
+        output_path,
+        args.work_dir.resolve() if args.work_dir else None,
+    )
     print(output_path)
 
 

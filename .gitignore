@@ -9,7 +9,9 @@ __pycache__/
 *.pages
 rendered/
 output/
+outputs/
 tmp/
 .DS_Store
 Thumbs.db
 ~$*.docx
+skill/xg-reading/xg-reading.local.json
