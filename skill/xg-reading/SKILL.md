@@ -60,6 +60,8 @@ Create one source-grounded Chinese DOCX that reconstructs how a life-science pap
 - Preserve the retained section order: field positioning and the paper's problem first, then the full-paper figure/table logic chain, then limitations and trend judgment, and only then the detailed figure/table evidence blocks. Do not reorder these sections for convenience or add a new opening background section.
 - Use 华文中宋 for Chinese and Times New Roman for English and numbers.
 - Keep body text justified with the spacing and hierarchy in `references/style-contract.md`.
+- Center only chapter-level section headings. Keep `Step` headings and paragraph-level prompts such as “图上如何体现：” left aligned.
+- Start every main Figure/Table evidence block on a new page, regardless of the unused space on the preceding page. Do not create a separate blank page before it.
 - Keep complete figure captions with their figures and integrate supporting material under the relevant main figure.
 - Reject a crop that contains text from the Results or Discussion paragraph following the caption, even when the caption itself is complete.
 - Do not insert spaces at Chinese-Latin or Chinese-number boundaries.

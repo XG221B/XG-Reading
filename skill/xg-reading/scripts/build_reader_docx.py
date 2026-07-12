@@ -169,7 +169,7 @@ def configure_styles(document: Document) -> None:
 
     section = get_or_add_style(document, STYLE_SECTION)
     set_style_font(section, 13, True)
-    section.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    section.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
     section.paragraph_format.line_spacing = 1.25
     section.paragraph_format.space_before = Pt(10)
     section.paragraph_format.space_after = Pt(8)
@@ -197,6 +197,8 @@ def configure_styles(document: Document) -> None:
     figure.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
     figure.paragraph_format.line_spacing = 1.25
     figure.paragraph_format.space_after = Pt(8)
+    # Each main-figure evidence block begins on a fresh page.
+    figure.paragraph_format.page_break_before = True
     figure.paragraph_format.keep_with_next = True
     figure.paragraph_format.widow_control = True
 
@@ -416,7 +418,6 @@ def build_document(
         temp_dir = Path(temp_dir_raw)
         evidence_blocks = data.get("evidence_blocks") or data.get("figures") or []
         for index, figure_data in enumerate(evidence_blocks, start=1):
-            add_page_break(document)
             add_paragraph(document, figure_data["title"], STYLE_FIGURE)
             main_image = resolve_path(figure_data["image"], content_dir)
             add_picture(

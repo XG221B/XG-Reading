@@ -90,7 +90,7 @@ def audit(docx_path: Path, content_path: Path | None):
     expected_styles = {
         "FER Title": (Pt(16), WD_ALIGN_PARAGRAPH.CENTER),
         "FER Metadata": (Pt(11), WD_ALIGN_PARAGRAPH.CENTER),
-        "FER Section": (Pt(13), WD_ALIGN_PARAGRAPH.LEFT),
+        "FER Section": (Pt(13), WD_ALIGN_PARAGRAPH.CENTER),
         "FER Step": (Pt(11), WD_ALIGN_PARAGRAPH.LEFT),
         "FER Body": (Pt(11), WD_ALIGN_PARAGRAPH.JUSTIFY),
         "FER Figure": (Pt(13), WD_ALIGN_PARAGRAPH.LEFT),
@@ -116,6 +116,10 @@ def audit(docx_path: Path, content_path: Path | None):
         errors.append("FER Body first-line indent is not 0.74 cm")
     if body_style.paragraph_format.line_spacing != 1.25:
         errors.append("FER Body line spacing is not 1.25")
+
+    figure_style = document.styles["FER Figure"]
+    if figure_style.paragraph_format.page_break_before is not True:
+        errors.append("FER Figure must start on a new page")
 
     cjk = r"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
     boundary_space = re.compile(
