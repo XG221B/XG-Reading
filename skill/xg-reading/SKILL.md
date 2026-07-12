@@ -19,14 +19,15 @@ Create one source-grounded Chinese DOCX that reconstructs how a life-science pap
    - `references/translational-engineering.md`
 4. Read `references/content-schema.md` before creating task-local JSON.
 5. Read `references/style-contract.md` before generation and audit.
-6. Treat `assets/reference.docx` and `references/template-contract.md` as the visual authority.
+6. Read `references/figure-extraction.md` before extracting figures from a PDF.
+7. Treat `assets/reference.docx` and `references/template-contract.md` as the visual authority.
 
 ## Workflow
 
 1. Collect the main paper, Supplementary Information, source data, and supplementary movies supplied by the user. Identify missing material instead of guessing it.
 2. Determine the paper type, central claims, biological scale, model system, and decisive experiments before drafting. Do not infer the paper's chain from section headings alone.
 3. Build a private claim ledger for every major conclusion: exact claim, direct measurement, intervention, controls, biological replicate, sample size, statistical test, orthogonal validation, alternative explanation, and evidence strength.
-4. Extract every complete main figure and caption. Extract only supplementary figures, tables, or movie frames that directly support a main claim.
+4. Extract every complete main figure and caption with `scripts/extract_figure_region.py`. Inspect its crop report and the image at 100% zoom. Never crop all figures with one fixed bottom coordinate or page percentage. Extract only supplementary figures, tables, or movie frames that directly support a main claim.
 5. Reconstruct the paper-specific argument chain. Preserve the paper's actual logic even when it does not follow construction, mechanism, animal, or translation stages.
 6. Analyze every main figure and every panel against the figure, caption, Results, Methods, statistics, and relevant supplement. Explain how to read the axes, groups, channels, controls, effect direction, uncertainty, and biological meaning.
 7. Apply the selected domain module. Do not replace domain reasoning with generic questions merely to increase coverage.
@@ -60,6 +61,7 @@ Create one source-grounded Chinese DOCX that reconstructs how a life-science pap
 - Use 华文中宋 for Chinese and Times New Roman for English and numbers.
 - Keep body text justified with the spacing and hierarchy in `references/style-contract.md`.
 - Keep complete figure captions with their figures and integrate supporting material under the relevant main figure.
+- Reject a crop that contains text from the Results or Discussion paragraph following the caption, even when the caption itself is complete.
 - Do not insert spaces at Chinese-Latin or Chinese-number boundaries.
 
 ## Failure conditions
