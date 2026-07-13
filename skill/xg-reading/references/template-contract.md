@@ -17,8 +17,10 @@
 4. Add an optional “未来展望” only when it is grounded in the authors' Discussion, Conclusion, or stated future work; otherwise omit it.
 5. Center each chapter-level heading, while keeping paragraph-level reading prompts left aligned.
 6. Start every evidence block on a new page with a one-sentence conclusion and a complete figure or table with caption.
-7. Follow with the authors' claim, panel-level reading, role in the argument, and relevant supplementary support.
-8. Keep supplementary evidence next to the main claim it changes.
+7. Follow the image with the authors' figure-level claim as direct prose, without a visible prompt label.
+8. Center the translated main-figure caption title, then use left-aligned translated panel titles followed by panel-level interpretation. Keep combined panel titles in one heading when the panels are explained together.
+9. End each main-figure block with `Fig.x总结：`, followed by relevant supplementary support.
+10. Keep supplementary evidence next to the main claim it changes.
 
 ## Editable and preserved elements
 

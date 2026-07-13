@@ -24,6 +24,7 @@ CUSTOM_STYLES = {
     "FER Step",
     "FER Body",
     "FER Figure",
+    "FER Figure Translation",
     "FER Supplement",
     "FER Picture",
     "FER Bullet",
@@ -94,6 +95,7 @@ def audit(docx_path: Path, content_path: Path | None):
         "FER Step": (Pt(11), WD_ALIGN_PARAGRAPH.LEFT),
         "FER Body": (Pt(11), WD_ALIGN_PARAGRAPH.JUSTIFY),
         "FER Figure": (Pt(13), WD_ALIGN_PARAGRAPH.LEFT),
+        "FER Figure Translation": (Pt(11), WD_ALIGN_PARAGRAPH.CENTER),
         "FER Supplement": (Pt(10.5), WD_ALIGN_PARAGRAPH.CENTER),
         "FER Picture": (Pt(11), WD_ALIGN_PARAGRAPH.CENTER),
         "FER Bullet": (Pt(11), WD_ALIGN_PARAGRAPH.JUSTIFY),
@@ -126,6 +128,12 @@ def audit(docx_path: Path, content_path: Path | None):
         rf"(?:[{cjk}]\s+[A-Za-z0-9]|[A-Za-z0-9]\s+[{cjk}])"
     )
     figure_headings = 0
+    translated_figure_headings = 0
+    forbidden_prompts = (
+        "论文中的说法：",
+        "图上如何体现：",
+        "这张图在论文逻辑中的位置：",
+    )
     for index, paragraph in enumerate(document.paragraphs):
         text = paragraph.text.strip()
         if not text and not paragraph._p.xpath(".//w:drawing"):
@@ -139,6 +147,10 @@ def audit(docx_path: Path, content_path: Path | None):
             )
         if style_name == "FER Figure":
             figure_headings += 1
+        if style_name == "FER Figure Translation":
+            translated_figure_headings += 1
+        if any(text.startswith(prompt) for prompt in forbidden_prompts):
+            errors.append(f"Deprecated prompt at paragraph {index}: {text}")
         if boundary_space.search(text):
             errors.append(f"Chinese-Latin boundary space at paragraph {index}")
 
@@ -166,6 +178,10 @@ def audit(docx_path: Path, content_path: Path | None):
             errors.append(
                 f"Figure heading count {figure_headings} != expected {expected_figures}"
             )
+        if translated_figure_headings != expected_figures:
+            errors.append(
+                f"Translated figure heading count {translated_figure_headings} != expected {expected_figures}"
+            )
         expected_images = expected_figures + sum(
             1 for figure in evidence_blocks if figure.get("support_images")
         )
@@ -184,6 +200,7 @@ def audit(docx_path: Path, content_path: Path | None):
         "paragraphs": len(document.paragraphs),
         "images": len(document.inline_shapes),
         "figure_headings": figure_headings,
+        "translated_figure_headings": translated_figure_headings,
     }
 
 

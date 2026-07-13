@@ -37,6 +37,7 @@ STYLE_SECTION = "FER Section"
 STYLE_STEP = "FER Step"
 STYLE_BODY = "FER Body"
 STYLE_FIGURE = "FER Figure"
+STYLE_FIGURE_TRANSLATION = "FER Figure Translation"
 STYLE_SUPPLEMENT = "FER Supplement"
 STYLE_PICTURE = "FER Picture"
 STYLE_BULLET = "FER Bullet"
@@ -94,8 +95,15 @@ def validate_content(data: dict[str, Any]) -> None:
     if not require_list(positioning, "paragraphs"):
         raise ValueError("field_positioning.paragraphs must not be empty")
 
-    if not require_list(data, "logic_chain"):
+    logic_chain = require_list(data, "logic_chain")
+    if not logic_chain:
         raise ValueError("logic_chain must not be empty")
+    for index, step_data in enumerate(logic_chain, start=1):
+        if not isinstance(step_data, dict):
+            raise ValueError(f"logic_chain[{index}] must be an object")
+        for key in ("title", "text"):
+            if not clean_text(step_data.get(key)):
+                raise ValueError(f"logic_chain[{index}].{key} is required")
 
     blocks = data.get("evidence_blocks")
     if blocks is None:
@@ -114,6 +122,17 @@ def validate_content(data: dict[str, Any]) -> None:
             raise ValueError(
                 f"evidence_blocks[{index}].panel_explanations must not be empty"
             )
+        for panel_index, panel in enumerate(panels, start=1):
+            if isinstance(panel, dict):
+                for key in ("title", "text"):
+                    if not clean_text(panel.get(key)):
+                        raise ValueError(
+                            f"evidence_blocks[{index}].panel_explanations[{panel_index}].{key} is required"
+                        )
+            elif not clean_text(panel):
+                raise ValueError(
+                    f"evidence_blocks[{index}].panel_explanations[{panel_index}] must not be empty"
+                )
 
 
 def resolve_path(raw: str, base_dir: Path) -> Path:
@@ -207,6 +226,15 @@ def configure_styles(document: Document) -> None:
     figure.paragraph_format.page_break_before = True
     figure.paragraph_format.keep_with_next = True
     figure.paragraph_format.widow_control = True
+
+    figure_translation = get_or_add_style(document, STYLE_FIGURE_TRANSLATION)
+    set_style_font(figure_translation, 11, True)
+    figure_translation.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    figure_translation.paragraph_format.line_spacing = 1.25
+    figure_translation.paragraph_format.space_before = Pt(6)
+    figure_translation.paragraph_format.space_after = Pt(4)
+    figure_translation.paragraph_format.keep_with_next = True
+    figure_translation.paragraph_format.widow_control = True
 
     supplement = get_or_add_style(document, STYLE_SUPPLEMENT)
     set_style_font(supplement, 10.5, True)
@@ -372,6 +400,50 @@ def add_named_items(
         add_paragraph(document, clean_text(item.get("text")), STYLE_BODY)
 
 
+def evidence_label(figure_data: dict[str, Any], index: int) -> str:
+    explicit = clean_text(figure_data.get("label"))
+    if explicit:
+        return explicit.rstrip("：:")
+
+    title = clean_text(figure_data.get("title"))
+    figure_match = re.search(r"(?:Figure|Fig\.?)\s*(\d+[A-Za-z]?)", title, re.I)
+    if figure_match:
+        return f"Fig.{figure_match.group(1)}"
+    table_match = re.search(r"Table\s*(\d+[A-Za-z]?)", title, re.I)
+    if table_match:
+        return f"Table {table_match.group(1)}"
+    return f"Fig.{index}"
+
+
+def translated_figure_title(figure_data: dict[str, Any]) -> str:
+    translated = clean_text(
+        figure_data.get("translated_title")
+        or figure_data.get("caption_title_cn")
+    )
+    if translated:
+        return translated
+
+    title = clean_text(figure_data.get("title"))
+    for separator in ("：", ":"):
+        if separator in title:
+            fallback = clean_text(title.split(separator, 1)[1])
+            if fallback:
+                return fallback
+    return title
+
+
+def normalized_logic_text(value: Any) -> str:
+    text = clean_text(value)
+    match = re.match(
+        r"^(对应(?:Fig\.?|Figure|Table)[^。:：]*)(?:。|:|：)(.*)$",
+        text,
+    )
+    if not match:
+        return text
+    label, remainder = match.groups()
+    return f"{label}：{remainder}"
+
+
 def build_document(
     data: dict[str, Any],
     template: Path,
@@ -419,7 +491,7 @@ def build_document(
     add_paragraph(document, "整篇论文的图像逻辑链", STYLE_SECTION)
     for step in data["logic_chain"]:
         add_paragraph(document, clean_text(step.get("title")), STYLE_STEP)
-        add_paragraph(document, clean_text(step.get("text")), STYLE_BODY)
+        add_paragraph(document, normalized_logic_text(step.get("text")), STYLE_BODY)
 
     future_outlook = data.get("future_outlook")
     if future_outlook is None:
@@ -450,17 +522,21 @@ def build_document(
                 15.5,
                 18.3,
             )
-            add_labeled_body(
-                document, "论文中的说法：", figure_data["paper_claim"]
-            )
-            add_paragraph(document, "图上如何体现：", STYLE_STEP)
-            for panel_text in figure_data["panel_explanations"]:
-                add_paragraph(document, panel_text, STYLE_BODY)
-            add_labeled_body(
+            add_paragraph(document, figure_data["paper_claim"], STYLE_BODY)
+            add_paragraph(
                 document,
-                "这张图在论文逻辑中的位置：",
-                figure_data["logic_role"],
+                translated_figure_title(figure_data),
+                STYLE_FIGURE_TRANSLATION,
             )
+            for panel_data in figure_data["panel_explanations"]:
+                if isinstance(panel_data, dict):
+                    add_paragraph(document, panel_data["title"], STYLE_STEP)
+                    add_paragraph(document, panel_data["text"], STYLE_BODY)
+                else:
+                    # Legacy content remains readable; new tasks use title/text objects.
+                    add_paragraph(document, panel_data, STYLE_BODY)
+            label = evidence_label(figure_data, index)
+            add_labeled_body(document, f"{label}总结：", figure_data["logic_role"])
 
             support_text = clean_text(figure_data.get("support_text"))
             support_images = figure_data.get("support_images") or []

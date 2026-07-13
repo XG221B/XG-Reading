@@ -41,7 +41,7 @@ The generated Chinese Word document usually includes:
 
 1. field positioning, the research gap, and the paper's contribution;
 2. the full figure/table logic chain;
-3. panel-level interpretation of every main figure or table;
+3. translated main-figure and panel titles followed by panel-level interpretation;
 4. supplementary evidence placed beside the main claim it supports;
 5. an optional **Future Outlook** section, limited to limitations, open questions, or next directions explicitly discussed by the authors in the Discussion, Conclusion, or stated future work. When the paper provides no such source-grounded discussion, this section is omitted.
 

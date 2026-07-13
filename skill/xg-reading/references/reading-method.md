@@ -22,7 +22,7 @@ Use this ledger internally. The final reader should communicate its conclusions 
 
 ## 3. Reconstruct the paper-specific chain
 
-Assign one necessary claim to each main Figure or table. Explain why the next evidence block is still needed. Do not force a standard sequence. A paper may begin with a phenotype, a cohort, a structure, a screen, a method benchmark, or a clinical observation.
+Assign one necessary claim to each main Figure or table. Explain why the next evidence block is still needed. Begin each logic-step body with `对应Fig.x：` or the equivalent Table label, followed immediately by a colon. Do not force a standard sequence. A paper may begin with a phenotype, a cohort, a structure, a screen, a method benchmark, or a clinical observation.
 
 ## 4. Analyze each Figure
 
@@ -30,11 +30,17 @@ Assign one necessary claim to each main Figure or table. Explain why the next ev
 
 Write one sentence whose strength matches the data.
 
-### What the paper says
+### Authors' figure-level statement
 
-Use the caption and Results to state the authors' intended claim. Preserve qualifiers such as model, condition, time point, dose, and population.
+Use the caption and Results to state the authors' intended claim directly after the figure. Preserve qualifiers such as model, condition, time point, dose, and population. Do not add a visible “论文中的说法：” prompt.
 
-### How the figure supports it
+### Translated main-figure title
+
+Extract the complete title from the main figure caption and translate it accurately into Chinese. Use this translation as a centered heading before panel-level reading. Do not replace it with a generic prompt such as “图上如何体现：”.
+
+### Panel titles and interpretation
+
+For every panel or tightly linked panel group, first translate the panel-specific caption clause into a concise left-aligned title that retains the panel label. If panels are explained together, place all translated panel titles in one heading separated by a Chinese semicolon; do not split them across separate heading paragraphs.
 
 For every panel or tightly linked panel group, explain:
 
@@ -48,9 +54,9 @@ For every panel or tightly linked panel group, explain:
 
 Do not narrate visible pixels. Teach the reader how the data produce the conclusion.
 
-### Role in the argument
+### Fig.x summary
 
-State what prior claim it relies on, what later claim it enables, and what the paper would lose without it.
+Write this paragraph with the visible label `Fig.x总结：`. State what prior claim it relies on, what later claim it enables, and what the paper would lose without it. Do not use “这张图在论文逻辑中的位置：”.
 
 ### Supplementary support
 
