@@ -21,10 +21,9 @@ Write one UTF-8 JSON file. Image paths may be absolute or relative to the JSON d
     {
       "kind": "figure",
       "label": "Fig.1",
-      "title": "Figure 1：一句话核心结论",
+      "title": "Figure 1：主图英文标题的准确中文翻译",
       "image": "images/figure1_with_caption.png",
       "paper_claim": "作者对该证据块的主要表述。",
-      "translated_title": "主图英文标题的准确中文翻译",
       "panel_explanations": [
         {"title": "Fig.1A：该panel图注内容的中文译名；Fig.1B：与其合并解读的panel译名", "text": "Fig.1A-B的实验设计、读图方法、结果和意义。"},
         {"title": "Fig.1C：该panel图注内容的中文译名", "text": "Fig.1C的实验设计、读图方法、结果和意义。"}
@@ -42,7 +41,7 @@ Write one UTF-8 JSON file. Image paths may be absolute or relative to the JSON d
 ## Required fields
 
 - Require `document_title`, `citation`, `field_positioning.paragraphs`, `logic_chain`, and `evidence_blocks`.
-- For every new evidence block require `label`, `title`, `image`, `paper_claim`, `translated_title`, `panel_explanations`, and `logic_role`.
+- For every new evidence block require `label`, `title`, `image`, `paper_claim`, `panel_explanations`, and `logic_role`.
 - Set `kind` to `figure`, `table`, `conceptual_figure`, or another precise label.
 - `future_outlook`, `support_text`, `support_images`, and `bullet_notes` are optional.
 - Use empty arrays when optional evidence is absent. Never invent missing supplements.
@@ -52,7 +51,7 @@ Write one UTF-8 JSON file. Image paths may be absolute or relative to the JSON d
 - Use `field_positioning` for the field problem, narrower gap, study system, actual contribution, and unresolved boundary.
 - Make each logic step explain why the next evidence is needed, what was done, what was observed, and what claim is supported. Start its body with `对应Fig.x：` or the equivalent Table label; put a colon immediately after the label, not a full stop.
 - Use `paper_claim` as direct prose after the main image. Do not prepend “论文中的说法：”.
-- Translate the full main-figure caption title accurately into `translated_title`; this becomes a centered heading.
+- Translate the full main-figure caption title accurately into `title`, prefixed by its evidence label, for example `Figure 1：OMV-siR机器人的制备与表征`. This is the single centered heading before the image; do not add another main-figure title after the image.
 - Preserve every main panel. Write each `panel_explanations` item as an object with `title` and `text`. Translate the panel-specific caption clause into `title`, including its `Fig.xA` label. When panels are interpreted together, combine their translated titles in the same `title` string, separated by a Chinese semicolon, without inserting another paragraph.
 - Use `logic_role` for the concluding `Fig.x总结：` paragraph.
 - Use complete figure or table images with their complete captions or notes. State uncertainty if the source cannot be recovered clearly.
@@ -61,4 +60,4 @@ Write one UTF-8 JSON file. Image paths may be absolute or relative to the JSON d
 - Do not add spaces at Chinese-English or Chinese-number boundaries.
 - Do not add personal questions, interview prompts, or proposed experiments unless requested.
 
-The builder accepts legacy `figures` and string-only `panel_explanations` as fallbacks, but new tasks must use `evidence_blocks` and panel objects.
+The builder accepts legacy `figures`, `translated_title`, and string-only `panel_explanations` as fallbacks, but new tasks must use `evidence_blocks`, place the translated caption title directly in `title`, and use panel objects.

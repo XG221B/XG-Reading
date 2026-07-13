@@ -219,7 +219,7 @@ def configure_styles(document: Document) -> None:
 
     figure = get_or_add_style(document, STYLE_FIGURE)
     set_style_font(figure, 13, True)
-    figure.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    figure.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
     figure.paragraph_format.line_spacing = 1.25
     figure.paragraph_format.space_after = Pt(8)
     # Each main-figure evidence block begins on a fresh page.
@@ -237,7 +237,7 @@ def configure_styles(document: Document) -> None:
     figure_translation.paragraph_format.widow_control = True
 
     supplement = get_or_add_style(document, STYLE_SUPPLEMENT)
-    set_style_font(supplement, 10.5, True)
+    set_style_font(supplement, 11, True)
     supplement.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
     supplement.paragraph_format.line_spacing = 1.25
     supplement.paragraph_format.space_after = Pt(2)
@@ -287,6 +287,13 @@ def add_paragraph(document: Document, text: str, style_name: str):
     paragraph = document.add_paragraph(style=style_name)
     add_text_run(paragraph, text)
     return paragraph
+
+
+def add_panel_spacer(document: Document) -> None:
+    """Match the retained 0.2-line blank spacer between panel groups."""
+    paragraph = document.add_paragraph(style=STYLE_BODY)
+    paragraph.paragraph_format.line_spacing = 0.2
+    paragraph.paragraph_format.first_line_indent = Cm(0)
 
 
 def add_labeled_body(document: Document, label: str, text: str):
@@ -415,7 +422,37 @@ def evidence_label(figure_data: dict[str, Any], index: int) -> str:
     return f"Fig.{index}"
 
 
+def figure_heading(figure_data: dict[str, Any], index: int) -> str:
+    """Return the evidence label plus the translated full caption title.
+
+    New content places the translation directly in ``title``. The legacy
+    translation fields remain readable and are folded into the same heading.
+    """
+    translated = clean_text(
+        figure_data.get("translated_title")
+        or figure_data.get("caption_title_cn")
+    )
+    title = clean_text(figure_data.get("title"))
+    if not translated:
+        return title
+
+    heading_match = re.match(
+        r"^((?:Figure|Fig\.?|Table)\s*\d+[A-Za-z]?)\s*[：:]",
+        title,
+        re.I,
+    )
+    if heading_match:
+        return f"{heading_match.group(1)}：{translated}"
+
+    label = evidence_label(figure_data, index)
+    figure_match = re.fullmatch(r"Fig\.\s*(\d+[A-Za-z]?)", label, re.I)
+    if figure_match:
+        return f"Figure {figure_match.group(1)}：{translated}"
+    return f"{label}：{translated}"
+
+
 def translated_figure_title(figure_data: dict[str, Any]) -> str:
+    """Legacy helper retained for callers that imported it directly."""
     translated = clean_text(
         figure_data.get("translated_title")
         or figure_data.get("caption_title_cn")
@@ -513,28 +550,27 @@ def build_document(
         temp_dir = Path(temp_dir_raw)
         evidence_blocks = data.get("evidence_blocks") or data.get("figures") or []
         for index, figure_data in enumerate(evidence_blocks, start=1):
-            add_paragraph(document, figure_data["title"], STYLE_FIGURE)
+            heading = figure_heading(figure_data, index)
+            add_paragraph(document, heading, STYLE_FIGURE)
             main_image = resolve_path(figure_data["image"], content_dir)
             add_picture(
                 document,
                 main_image,
-                f"{figure_data['title']}完整图表和说明",
+                f"{heading}完整图表和说明",
                 15.5,
                 18.3,
             )
             add_paragraph(document, figure_data["paper_claim"], STYLE_BODY)
-            add_paragraph(
-                document,
-                translated_figure_title(figure_data),
-                STYLE_FIGURE_TRANSLATION,
-            )
-            for panel_data in figure_data["panel_explanations"]:
+            panel_explanations = figure_data["panel_explanations"]
+            for panel_index, panel_data in enumerate(panel_explanations):
                 if isinstance(panel_data, dict):
                     add_paragraph(document, panel_data["title"], STYLE_STEP)
                     add_paragraph(document, panel_data["text"], STYLE_BODY)
                 else:
                     # Legacy content remains readable; new tasks use title/text objects.
                     add_paragraph(document, panel_data, STYLE_BODY)
+                if panel_index < len(panel_explanations) - 1:
+                    add_panel_spacer(document)
             label = evidence_label(figure_data, index)
             add_labeled_body(document, f"{label}总结：", figure_data["logic_role"])
 
@@ -552,7 +588,7 @@ def build_document(
                 add_picture(
                     document,
                     support_sheet,
-                    f"{figure_data['title']}相关补充材料组图",
+                    f"{heading}相关补充材料组图",
                     14.6,
                     16.5,
                 )

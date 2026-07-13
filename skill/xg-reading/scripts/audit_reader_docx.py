@@ -94,9 +94,9 @@ def audit(docx_path: Path, content_path: Path | None):
         "FER Section": (Pt(13), WD_ALIGN_PARAGRAPH.CENTER),
         "FER Step": (Pt(11), WD_ALIGN_PARAGRAPH.LEFT),
         "FER Body": (Pt(11), WD_ALIGN_PARAGRAPH.JUSTIFY),
-        "FER Figure": (Pt(13), WD_ALIGN_PARAGRAPH.LEFT),
+        "FER Figure": (Pt(13), WD_ALIGN_PARAGRAPH.CENTER),
         "FER Figure Translation": (Pt(11), WD_ALIGN_PARAGRAPH.CENTER),
-        "FER Supplement": (Pt(10.5), WD_ALIGN_PARAGRAPH.CENTER),
+        "FER Supplement": (Pt(11), WD_ALIGN_PARAGRAPH.CENTER),
         "FER Picture": (Pt(11), WD_ALIGN_PARAGRAPH.CENTER),
         "FER Bullet": (Pt(11), WD_ALIGN_PARAGRAPH.JUSTIFY),
     }
@@ -129,6 +129,7 @@ def audit(docx_path: Path, content_path: Path | None):
     )
     figure_headings = 0
     translated_figure_headings = 0
+    panel_spacers = 0
     forbidden_prompts = (
         "论文中的说法：",
         "图上如何体现：",
@@ -136,6 +137,15 @@ def audit(docx_path: Path, content_path: Path | None):
     )
     for index, paragraph in enumerate(document.paragraphs):
         text = paragraph.text.strip()
+        if not text and paragraph.style.name == "FER Body":
+            if paragraph.paragraph_format.line_spacing == 0.2:
+                panel_spacers += 1
+                if paragraph.paragraph_format.first_line_indent != Cm(0):
+                    errors.append(
+                        f"Panel spacer first-line indent is not zero at paragraph {index}"
+                    )
+            elif not paragraph._p.xpath(".//w:drawing"):
+                errors.append(f"Unexpected blank FER Body paragraph at paragraph {index}")
         if not text and not paragraph._p.xpath(".//w:drawing"):
             continue
         style_name = paragraph.style.name
@@ -178,9 +188,17 @@ def audit(docx_path: Path, content_path: Path | None):
             errors.append(
                 f"Figure heading count {figure_headings} != expected {expected_figures}"
             )
-        if translated_figure_headings != expected_figures:
+        if translated_figure_headings:
             errors.append(
-                f"Translated figure heading count {translated_figure_headings} != expected {expected_figures}"
+                "Separate translated figure-title paragraphs are no longer allowed"
+            )
+        expected_panel_spacers = sum(
+            max(len(figure.get("panel_explanations") or []) - 1, 0)
+            for figure in evidence_blocks
+        )
+        if panel_spacers != expected_panel_spacers:
+            errors.append(
+                f"Panel spacer count {panel_spacers} != expected {expected_panel_spacers}"
             )
         expected_images = expected_figures + sum(
             1 for figure in evidence_blocks if figure.get("support_images")
@@ -201,6 +219,7 @@ def audit(docx_path: Path, content_path: Path | None):
         "images": len(document.inline_shapes),
         "figure_headings": figure_headings,
         "translated_figure_headings": translated_figure_headings,
+        "panel_spacers": panel_spacers,
     }
 
 

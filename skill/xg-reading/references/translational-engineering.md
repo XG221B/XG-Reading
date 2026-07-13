@@ -4,7 +4,7 @@
 
 - Separate fabrication, physicochemical characterization, stability, functional performance, biological interaction, efficacy, and safety.
 - Verify loading, release, recovery, batch consistency, storage, sterilization, and function after formulation.
-- Distinguish active transport or targeting from enhanced diffusion, retention, endpoint accumulation, or altered clearance.
+- Apply movement and targeting distinctions only when the paper claims active targeting, navigation, chemotaxis, or disease-directed movement, or when the distinction materially affects a central claim. Do not add a directionality caveat merely because MSD, speed, diffusion, or trajectory data are present. When directionality is genuinely at issue, distinguish it from enhanced diffusion, retention, endpoint accumulation, or altered clearance.
 - Require controls that isolate carrier, cargo, targeting ligand, propulsion or stimulus, and combination effects when claims depend on modular synergy.
 
 ## Pharmacology and in vivo studies

@@ -26,21 +26,19 @@ Assign one necessary claim to each main Figure or table. Explain why the next ev
 
 ## 4. Analyze each Figure
 
-### Core conclusion
+### Main-figure heading
 
-Write one sentence whose strength matches the data.
+Extract the complete title from the main-figure caption and translate it accurately into Chinese. Put it directly in the centered heading before the image as `Figure X：<完整中文图题>`. Do not replace the caption title with a one-sentence interpretation, and do not repeat it after the image.
 
 ### Authors' figure-level statement
 
 Use the caption and Results to state the authors' intended claim directly after the figure. Preserve qualifiers such as model, condition, time point, dose, and population. Do not add a visible “论文中的说法：” prompt.
 
-### Translated main-figure title
-
-Extract the complete title from the main figure caption and translate it accurately into Chinese. Use this translation as a centered heading before panel-level reading. Do not replace it with a generic prompt such as “图上如何体现：”.
-
 ### Panel titles and interpretation
 
 For every panel or tightly linked panel group, first translate the panel-specific caption clause into a concise left-aligned title that retains the panel label. If panels are explained together, place all translated panel titles in one heading separated by a Chinese semicolon; do not split them across separate heading paragraphs.
+
+Separate adjacent panel-title-and-interpretation groups with the retained 0.2-line blank spacer. Do not place this spacer before the first group or after the last group.
 
 For every panel or tightly linked panel group, explain:
 
@@ -83,6 +81,8 @@ Prefer “supports”, “is consistent with”, and “suggests” unless the d
 ## 6. Preserve evidence boundaries without adding a critique chapter
 
 Use model boundaries, alternative explanations, and missing validation to calibrate the interpretation of the relevant Figure or claim. Do not turn these internal checks into a standalone “文章不足” section.
+
+Apply a distinction only when it is relevant to the paper's actual wording and central evidence. In particular, do not automatically add a disease-directed displacement caveat whenever an MSD, speed, diffusion, or trajectory assay appears. Discuss directionality, net displacement, navigation, or chemotaxis only when the paper claims those properties, when the experiment is designed to test them, or when the distinction materially changes a central conclusion.
 
 ## 7. Extract only author-grounded future outlook
 
