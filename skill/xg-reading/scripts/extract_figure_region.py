@@ -270,19 +270,22 @@ def detect_caption(text_page, label: str, page_height: float):
     }
 
 
-def row_ink_fraction(image: Image.Image, left: int, right: int, y: int) -> float:
-    row = image.crop((left, y, right, y + 1)).convert("L")
-    getter = getattr(row, "get_flattened_data", row.getdata)
-    pixels = list(getter())
-    return sum(value < 242 for value in pixels) / max(1, len(pixels))
-
-
 def detect_top(image: Image.Image, left: int, right: int, caption_top: int):
     height = image.height
     limit = min(int(height * 0.28), max(1, int(caption_top * 0.55)))
-    blank = [
-        row_ink_fraction(image, left, right, y) <= 0.0035 for y in range(limit)
-    ]
+    # Convert the scanned region once instead of per row, keeping the exact
+    # same < 242 luminance threshold and the same (left, right) column slice.
+    region = image.crop((0, 0, image.width, limit)).convert("L")
+    getter = getattr(region, "get_flattened_data", region.getdata)
+    pixels = list(getter())
+    row_width = region.width
+    span = max(1, right - left)
+    blank = []
+    for y in range(limit):
+        start = y * row_width + left
+        row = pixels[start : start + span]
+        ink = sum(value < 242 for value in row) / span
+        blank.append(ink <= 0.0035)
     runs = []
     start = None
     for index, is_blank in enumerate(blank + [False]):
@@ -302,39 +305,50 @@ def detect_top(image: Image.Image, left: int, right: int, caption_top: int):
     return int(height * 0.04), "low", "fixed_top_fallback"
 
 
-def main() -> None:
-    args = parse_args()
-    pdf = pdfium.PdfDocument(args.pdf.resolve())
-    if not 1 <= args.page <= len(pdf):
-        raise ValueError(f"page must be between 1 and {len(pdf)}")
-    page = pdf[args.page - 1]
-    page_width, page_height = page.get_size()
+def caption_for_page(page, page_height: float, label: str) -> dict:
+    """Detect the caption region from the page text layer (no rendering)."""
     text_page = page.get_textpage()
-    caption = detect_caption(text_page, args.label, page_height)
+    return detect_caption(text_page, label, page_height)
 
-    crop_bottom_pdf = caption["caption_bottom"] - args.caption_padding
+
+def crop_from_rendered(
+    rendered: Image.Image,
+    page_width: float,
+    page_height: float,
+    caption: dict,
+    label: str,
+    output: Path,
+    *,
+    scale: float,
+    left: float,
+    right: float,
+    caption_padding: float,
+    top_from_page: float | None,
+    allow_low_confidence: bool,
+) -> dict:
+    """Crop the figure from an already-rendered page and build the report."""
+    crop_bottom_pdf = caption["caption_bottom"] - caption_padding
     if caption["next_text_top"] is not None:
         crop_bottom_pdf = max(
             crop_bottom_pdf, caption["next_text_top"] + 1.5
         )
 
-    rendered = page.render(scale=args.scale).to_pil().convert("RGB")
-    left_px = max(0, math.floor(args.left * args.scale))
+    left_px = max(0, math.floor(left * scale))
     right_px = min(
-        rendered.width, math.ceil((page_width - args.right) * args.scale)
+        rendered.width, math.ceil((page_width - right) * scale)
     )
-    caption_top_px = math.floor((page_height - caption["caption_top"]) * args.scale)
+    caption_top_px = math.floor((page_height - caption["caption_top"]) * scale)
     bottom_px = min(
         rendered.height,
-        math.ceil((page_height - crop_bottom_pdf) * args.scale),
+        math.ceil((page_height - crop_bottom_pdf) * scale),
     )
 
-    if args.top_from_page is None:
+    if top_from_page is None:
         top_px, top_confidence, top_reason = detect_top(
             rendered, left_px, right_px, caption_top_px
         )
     else:
-        top_px = max(0, math.floor(args.top_from_page * args.scale))
+        top_px = max(0, math.floor(top_from_page * scale))
         top_confidence = "high"
         top_reason = "manual_pdf_coordinate"
 
@@ -349,21 +363,19 @@ def main() -> None:
         if caption["confidence"] == "high":
             caption["confidence"] = "medium"
 
-    if caption["confidence"] == "low" and not args.allow_low_confidence:
+    if caption["confidence"] == "low" and not allow_low_confidence:
         raise ValueError(
             "Low-confidence figure boundary detection; inspect the PDF and rerun "
             "with --top-from-page or --allow-low-confidence"
         )
 
     cropped = rendered.crop((left_px, top_px, right_px, bottom_px))
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    cropped.save(args.output, optimize=True)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    cropped.save(output, optimize=True)
 
-    report = {
-        "pdf": str(args.pdf.resolve()),
-        "page": args.page,
-        "label": args.label,
-        "output": str(args.output.resolve()),
+    return {
+        "label": label,
+        "output": str(output.resolve()),
         "confidence": caption["confidence"],
         "warnings": caption["warnings"],
         "caption_text": caption["caption_text"],
@@ -375,6 +387,67 @@ def main() -> None:
         "crop_box_pixels": [left_px, top_px, right_px, bottom_px],
         "rendered_page_pixels": [rendered.width, rendered.height],
     }
+
+
+def extract_figure(
+    pdf: pdfium.PdfDocument,
+    pdf_path: Path,
+    page_index: int,
+    label: str,
+    output: Path,
+    *,
+    scale: float = 3.0,
+    left: float = 18.0,
+    right: float = 18.0,
+    caption_padding: float = 4.0,
+    top_from_page: float | None = None,
+    allow_low_confidence: bool = False,
+) -> dict:
+    """Crop one figure and caption, returning the identical report dict that
+    the single-figure CLI prints and stores as ``<output>.crop.json``."""
+    if not 1 <= page_index <= len(pdf):
+        raise ValueError(f"page must be between 1 and {len(pdf)}")
+    page = pdf[page_index - 1]
+    page_width, page_height = page.get_size()
+    caption = caption_for_page(page, page_height, label)
+    rendered = page.render(scale=scale).to_pil().convert("RGB")
+    report = crop_from_rendered(
+        rendered,
+        page_width,
+        page_height,
+        caption,
+        label,
+        output,
+        scale=scale,
+        left=left,
+        right=right,
+        caption_padding=caption_padding,
+        top_from_page=top_from_page,
+        allow_low_confidence=allow_low_confidence,
+    )
+    return {
+        "pdf": str(pdf_path.resolve()),
+        "page": page_index,
+        **report,
+    }
+
+
+def main() -> None:
+    args = parse_args()
+    pdf = pdfium.PdfDocument(args.pdf.resolve())
+    report = extract_figure(
+        pdf,
+        args.pdf,
+        args.page,
+        args.label,
+        args.output,
+        scale=args.scale,
+        left=args.left,
+        right=args.right,
+        caption_padding=args.caption_padding,
+        top_from_page=args.top_from_page,
+        allow_low_confidence=args.allow_low_confidence,
+    )
     report_path = args.output.with_suffix(args.output.suffix + ".crop.json")
     report_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
@@ -16,6 +17,7 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 LOCAL_CONFIG_NAME = "xg-reading.local.json"
 WORKSPACE_SCHEMA_VERSION = 1
 INVALID_FOLDER_CHARS = r'[<>:"/\\|?*\x00-\x1f]'
+YEAR_PREFIX = re.compile(r"^(?:19|20)\d{2}-")
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,6 +159,13 @@ def initialize_workspace(args: argparse.Namespace) -> dict:
     if not paper.exists() or not paper.is_file():
         raise FileNotFoundError(f"Main paper does not exist: {paper}")
     title = safe_folder_name(args.title or paper.stem)
+    if not YEAR_PREFIX.match(title):
+        print(
+            f"warning: paper folder name {title!r} does not follow the "
+            "'年份-文章标题' convention (for example 2023-Autonomous ...); "
+            "pass --title 'YYYY-<title>' to name the output folder accordingly.",
+            file=sys.stderr,
+        )
     paper_dir = repository_root / "outputs" / title
     process_dir = paper_dir / "process"
     for directory in (

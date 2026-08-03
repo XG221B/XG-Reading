@@ -17,7 +17,11 @@ jobs:
         run: |
           python -m py_compile \
             skill/xg-reading/scripts/build_reader_docx.py \
-            skill/xg-reading/scripts/audit_reader_docx.py
+            skill/xg-reading/scripts/audit_reader_docx.py \
+            skill/xg-reading/scripts/reader_workspace.py \
+            skill/xg-reading/scripts/extract_figure_region.py \
+            skill/xg-reading/scripts/extract_figures_batch.py \
+            skill/xg-reading/scripts/render_reader_docx.py
       - name: Verify retained template hash and required files
         run: |
           python - <<'PY'

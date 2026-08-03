@@ -71,7 +71,7 @@ XG-Reading先建立论文专属的claim-to-evidence map，再逐图写作，因�
 .\install.ps1 -Mode Copy -ReplaceExisting
 ```
 
-`outputs/`是本地工作区，不会被Git提交。每篇论文在其中拥有独立文件夹，最终Word位于顶层，裁图、内容JSON、渲染页和审计报告位于`process/`。原始PDF、补充材料和视频不会被复制，来源路径和SHA-256会记录在`source-manifest.json`。
+`outputs/`是本地工作区，不会被Git提交。每篇论文在其中拥有独立的「年份-文章标题」文件夹（例如`2023-Autonomous metal-organic framework nanorobots for active mitochondria-targeted cancer therapy`），最终Word位于顶层，裁图、内容JSON、渲染页和审计报告位于`process/`。原始PDF、补充材料和视频不会被复制，来源路径和SHA-256会记录在`source-manifest.json`。
 
 重新打开Codex后可显式调用：
 
