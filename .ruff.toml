@@ -1,0 +1,15 @@
+target-version = "py312"
+line-length = 100
+
+[lint]
+extend-select = ["I", "F", "UP", "RUF", "FURB"]
+ignore = [
+    "BLE001",  # blind except: intentional error-record capture design
+    "S112",    # try-except-continue in glyph fallback loop
+    "TRY004",  # isinstance Exception checks are deliberate
+    "RUF001",  # Chinese/full-width content strings are intentional
+    "FURB110", # if-exp style, cosmetic only
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["S101"]

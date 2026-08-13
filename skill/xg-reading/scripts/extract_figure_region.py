@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
 
 import pypdfium2 as pdfium
+from file_utils import atomic_replace, atomic_write_text
 from PIL import Image
 
 
@@ -288,7 +290,7 @@ def detect_top(image: Image.Image, left: int, right: int, caption_top: int):
         blank.append(ink <= 0.0035)
     runs = []
     start = None
-    for index, is_blank in enumerate(blank + [False]):
+    for index, is_blank in enumerate([*blank, False]):
         if is_blank and start is None:
             start = index
         elif not is_blank and start is not None:
@@ -371,7 +373,9 @@ def crop_from_rendered(
 
     cropped = rendered.crop((left_px, top_px, right_px, bottom_px))
     output.parent.mkdir(parents=True, exist_ok=True)
-    cropped.save(output, optimize=True)
+    temp_output = output.with_name(output.name + f".tmp{os.getpid()}")
+    cropped.save(temp_output, format="PNG", optimize=True)
+    atomic_replace(temp_output, output)
 
     return {
         "label": label,
@@ -449,8 +453,9 @@ def main() -> None:
         allow_low_confidence=args.allow_low_confidence,
     )
     report_path = args.output.with_suffix(args.output.suffix + ".crop.json")
-    report_path.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    atomic_write_text(
+        report_path,
+        json.dumps(report, ensure_ascii=False, indent=2),
     )
     print(json.dumps(report, ensure_ascii=True, indent=2))
 

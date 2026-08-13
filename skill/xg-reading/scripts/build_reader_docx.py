@@ -4,22 +4,21 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import nullcontext
 import hashlib
 import json
 import re
 import tempfile
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
-
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_TEMPLATE = SKILL_DIR / "assets" / "reference.docx"
@@ -305,11 +304,6 @@ def add_labeled_body(document: Document, label: str, text: str):
     return paragraph
 
 
-def add_page_break(document: Document) -> None:
-    paragraph = document.add_paragraph()
-    paragraph.add_run().add_break(WD_BREAK.PAGE)
-
-
 def add_bullet(document: Document, text: str) -> None:
     paragraph = document.add_paragraph(style=STYLE_BULLET)
     add_text_run(paragraph, text)
@@ -413,10 +407,10 @@ def evidence_label(figure_data: dict[str, Any], index: int) -> str:
         return explicit.rstrip("：:")
 
     title = clean_text(figure_data.get("title"))
-    figure_match = re.search(r"(?:Figure|Fig\.?)\s*(\d+[A-Za-z]?)", title, re.I)
+    figure_match = re.search(r"(?:Figure|Fig\.?)\s*(\d+[A-Za-z]?)", title, re.IGNORECASE)
     if figure_match:
         return f"Fig.{figure_match.group(1)}"
-    table_match = re.search(r"Table\s*(\d+[A-Za-z]?)", title, re.I)
+    table_match = re.search(r"Table\s*(\d+[A-Za-z]?)", title, re.IGNORECASE)
     if table_match:
         return f"Table {table_match.group(1)}"
     return f"Fig.{index}"
@@ -439,13 +433,13 @@ def figure_heading(figure_data: dict[str, Any], index: int) -> str:
     heading_match = re.match(
         r"^((?:Figure|Fig\.?|Table)\s*\d+[A-Za-z]?)\s*[：:]",
         title,
-        re.I,
+        re.IGNORECASE,
     )
     if heading_match:
         return f"{heading_match.group(1)}：{translated}"
 
     label = evidence_label(figure_data, index)
-    figure_match = re.fullmatch(r"Fig\.\s*(\d+[A-Za-z]?)", label, re.I)
+    figure_match = re.fullmatch(r"Fig\.\s*(\d+[A-Za-z]?)", label, re.IGNORECASE)
     if figure_match:
         return f"Figure {figure_match.group(1)}：{translated}"
     return f"{label}：{translated}"
@@ -479,6 +473,16 @@ def normalized_logic_text(value: Any) -> str:
         return text
     label, remainder = match.groups()
     return f"{label}：{remainder}"
+
+
+def save_document(document: Document, output: Path) -> None:
+    try:
+        document.save(output)
+    except PermissionError as error:
+        raise RuntimeError(
+            f"Could not write {output}: the file may be open in Word. "
+            "Close it and retry."
+        ) from error
 
 
 def build_document(
@@ -594,7 +598,7 @@ def build_document(
                 )
 
         output.parent.mkdir(parents=True, exist_ok=True)
-        document.save(output)
+        save_document(document, output)
 
 
 def main() -> None:

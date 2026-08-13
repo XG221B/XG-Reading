@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 import pypdfium2 as pdfium
+from file_utils import release_lock, wait_for_lock
 
 CACHE_NAME = "render-cache.json"
 WORD_PDF_EXPORT = 17  # wdExportFormatPDF
@@ -31,15 +32,14 @@ WORD_EXPORT_ITEM = 0  # wdExportDocumentContent
 WORD_CREATE_BOOKMARKS = 0  # wdExportCreateNoBookmarks
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--docx", required=True, type=Path)
     parser.add_argument("--work-dir", required=True, type=Path)
     parser.add_argument("--pdf", default="reader.pdf", help="PDF name inside work-dir")
     parser.add_argument("--scale", type=float, default=2.0, help="PNG render scale")
-    parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4)
     parser.add_argument("--force", action="store_true", help="Ignore the cache")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def sha256(path: Path) -> str:
@@ -88,6 +88,38 @@ def convert_with_soffice(soffice: Path, docx: Path, pdf: Path) -> None:
         produced.replace(pdf)
 
 
+def cleanup_invisible_word() -> None:
+    """Stop only invisible WINWORD instances left behind by a failed export.
+
+    Visible Word windows belong to the user and are never touched.
+    """
+    script = (
+        "$ErrorActionPreference = 'SilentlyContinue'\n"
+        "Get-Process WINWORD -ErrorAction SilentlyContinue |\n"
+        "  Where-Object { $_.MainWindowHandle -eq 0 } |\n"
+        "  ForEach-Object { Stop-Process -Id $_.Id -Force }\n"
+    )
+    with tempfile.TemporaryDirectory(prefix="xg-render-") as tmp_raw:
+        script_path = Path(tmp_raw) / "cleanup.ps1"
+        script_path.write_bytes(script.encode("utf-8-sig"))
+        try:
+            subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(script_path),
+                ],
+                check=False,
+                timeout=120,
+            )
+        except (subprocess.SubprocessError, OSError):
+            pass
+
+
 def convert_with_word(docx: Path, pdf: Path) -> None:
     script = (
         "$ErrorActionPreference = 'Stop'\n"
@@ -114,33 +146,41 @@ def convert_with_word(docx: Path, pdf: Path) -> None:
         script_path = Path(tmp_raw) / "render.ps1"
         # PowerShell 5.1 requires a BOM to read UTF-8 scripts correctly.
         script_path.write_bytes(script.encode("utf-8-sig"))
-        subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(script_path),
-            ],
-            check=True,
-            timeout=900,
-        )
+        try:
+            subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(script_path),
+                ],
+                check=True,
+                timeout=900,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
+            cleanup_invisible_word()
+            raise RuntimeError(
+                "Word conversion failed. Install LibreOffice for a more reliable "
+                f"renderer, or inspect the DOCX in Word. Original error: {error}"
+            ) from error
 
 
-def convert_docx_to_pdf(docx: Path, pdf: Path) -> None:
+def convert_docx_to_pdf(docx: Path, pdf: Path) -> str:
+    """Convert the DOCX to PDF and return the engine name used."""
     soffice = find_soffice()
     if soffice is not None:
         convert_with_soffice(soffice, docx, pdf)
-        return
+        return "soffice"
     convert_with_word(docx, pdf)
+    return "word"
 
 
-def render_pages(pdf_path: Path, work_dir: Path, scale: float, jobs: int) -> list[str]:
+def render_pages(pdf_path: Path, work_dir: Path, scale: float) -> list[str]:
     # Sequential rendering: PDFium is not thread-safe in this environment,
     # and per-page PNG rasterization is already fast at inspection scale.
-    del jobs
     pages = []
     with pdfium.PdfDocument(str(pdf_path.resolve())) as pdf:
         count = len(pdf)
@@ -151,6 +191,12 @@ def render_pages(pdf_path: Path, work_dir: Path, scale: float, jobs: int) -> lis
             rendered.save(work_dir / name, optimize=True)
             pages.append(name)
     return pages
+
+
+def render_lock_path() -> Path:
+    """One machine-wide lock for DOCX-to-PDF conversion, which uses shared
+    single-instance resources (Word COM, the LibreOffice user profile)."""
+    return Path(tempfile.gettempdir()) / "xg-render.lock"
 
 
 def load_cache(work_dir: Path) -> dict:
@@ -171,6 +217,39 @@ def save_cache(work_dir: Path, entry: dict) -> None:
     )
 
 
+def cache_matches(cache: dict, digest: str, scale: float, engine: str) -> bool:
+    """A cached render is reusable only when hash, scale, and engine match."""
+    return (
+        cache.get("docx_sha256") == digest
+        and cache.get("scale") == scale
+        and cache.get("engine") == engine
+    )
+
+
+def page_hashes(work_dir: Path, pages: list[str]) -> dict[str, str]:
+    hashes = {}
+    for name in pages:
+        path = work_dir / name
+        if path.exists():
+            hashes[name] = sha256(path)
+    return hashes
+
+
+def diff_pages(
+    order: list[str],
+    current: dict[str, str],
+    previous: dict[str, str] | None,
+):
+    """Split page names into changed and unchanged against a previous render."""
+    if previous is None:
+        return list(order), []
+    changed = [
+        name for name in order if current.get(name) != previous.get(name)
+    ]
+    unchanged = [name for name in order if name not in changed]
+    return changed, unchanged
+
+
 def main() -> None:
     args = parse_args()
     if not args.docx.exists():
@@ -180,21 +259,39 @@ def main() -> None:
     pdf_path = work_dir / args.pdf
 
     digest = sha256(args.docx.resolve())
+    engine = "soffice" if find_soffice() else "word"
     cache = load_cache(work_dir)
-    if not args.force and cache.get("docx_sha256") == digest:
+    if not args.force and cache_matches(cache, digest, args.scale, engine):
         cached_pdf = work_dir / cache["pdf"]
         cached_pages = [work_dir / name for name in cache.get("pages", [])]
         if cached_pdf.exists() and all(path.exists() for path in cached_pages):
+            current = page_hashes(work_dir, cache.get("pages", []))
+            changed, _unused = diff_pages(
+                cache.get("pages", []), current, cache.get("page_hashes")
+            )
             print("cached")
             print(cached_pdf)
-            for page in cached_pages:
-                print(page)
+            for name in cache.get("pages", []):
+                path = work_dir / name
+                if name in changed:
+                    print(f"changed {path}")
+                else:
+                    print(f"unchanged {path}")
             return
 
     started = time.perf_counter()
-    convert_docx_to_pdf(args.docx.resolve(), pdf_path)
-    converted = time.perf_counter()
-    pages = render_pages(pdf_path, work_dir, args.scale, args.jobs)
+    lock_path = render_lock_path()
+    if not wait_for_lock(lock_path):
+        raise RuntimeError(
+            "Another XG-Reading render is still converting a document; "
+            f"lock held at {lock_path}"
+        )
+    try:
+        engine = convert_docx_to_pdf(args.docx.resolve(), pdf_path)
+        converted = time.perf_counter()
+        pages = render_pages(pdf_path, work_dir, args.scale)
+    finally:
+        release_lock(lock_path)
     rendered = time.perf_counter()
 
     save_cache(
@@ -204,13 +301,15 @@ def main() -> None:
             "pdf": pdf_path.name,
             "pages": pages,
             "scale": args.scale,
+            "engine": engine,
+            "page_hashes": page_hashes(work_dir, pages),
         },
     )
     print(f"converted {pdf_path.name} in {converted - started:.1f}s")
     print(f"rendered {len(pages)} pages in {rendered - converted:.1f}s")
     print(pdf_path)
     for name in pages:
-        print(work_dir / name)
+        print(f"changed {work_dir / name}")
 
 
 if __name__ == "__main__":

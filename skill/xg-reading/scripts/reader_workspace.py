@@ -8,15 +8,15 @@ import hashlib
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
-
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 LOCAL_CONFIG_NAME = "xg-reading.local.json"
 WORKSPACE_SCHEMA_VERSION = 1
 INVALID_FOLDER_CHARS = r'[<>:"/\\|?*\x00-\x1f]'
+WINDOWS_RESERVED_NAME = re.compile(r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$", re.IGNORECASE)
 YEAR_PREFIX = re.compile(r"^(?:19|20)\d{2}-")
 
 
@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 def read_local_config(skill_dir: Path) -> Path | None:
@@ -105,6 +105,8 @@ def safe_folder_name(value: str) -> str:
     normalized = re.sub(r"\s+", " ", normalized)
     if not normalized:
         raise ValueError("Paper title does not contain a usable folder name")
+    if WINDOWS_RESERVED_NAME.match(normalized):
+        raise ValueError(f"Paper title is a reserved Windows name: {normalized}")
     return normalized[:140]
 
 
@@ -153,6 +155,28 @@ def make_workspace_manifest(
     }
 
 
+def compare_sources(previous_manifest: dict, current_sources: list[dict]) -> list[str]:
+    """Warn when a source file's sha256 changed since the last init."""
+    warnings: list[str] = []
+    current_by_key = {
+        (record.get("role"), record.get("path")): record
+        for record in current_sources
+    }
+    for previous in previous_manifest.get("sources") or []:
+        key = (previous.get("role"), previous.get("path"))
+        current = current_by_key.get(key)
+        if current is None:
+            continue
+        previous_hash = previous.get("sha256")
+        current_hash = current.get("sha256")
+        if previous_hash and current_hash and previous_hash != current_hash:
+            warnings.append(
+                f"{previous.get('role')} changed since the last init: "
+                f"{previous.get('path')}"
+            )
+    return warnings
+
+
 def initialize_workspace(args: argparse.Namespace) -> dict:
     repository_root = resolve_repository_root(args.repository_root, args.skill_dir)
     paper = args.paper.expanduser().resolve()
@@ -190,6 +214,8 @@ def initialize_workspace(args: argparse.Namespace) -> dict:
     if manifest_path.exists():
         previous = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["created_at"] = previous.get("created_at", manifest["updated_at"])
+        for warning in compare_sources(previous, manifest["sources"]):
+            print(warning, file=sys.stderr)
     else:
         manifest["created_at"] = manifest["updated_at"]
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -200,9 +226,9 @@ def main() -> None:
     args = parse_args()
     if args.command == "resolve-root":
         root = resolve_repository_root(args.repository_root, args.skill_dir)
-        print(json.dumps({"repository_root": str(root), "outputs_root": str(root / "outputs")}, ensure_ascii=False))
+        print(json.dumps({"repository_root": str(root), "outputs_root": str(root / "outputs")}, ensure_ascii=True))
         return
-    print(json.dumps(initialize_workspace(args), ensure_ascii=False, indent=2))
+    print(json.dumps(initialize_workspace(args), ensure_ascii=True, indent=2))
 
 
 if __name__ == "__main__":
