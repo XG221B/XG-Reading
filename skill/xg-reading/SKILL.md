@@ -7,6 +7,12 @@ description: Read life-science papers deeply from figures, tables, methods, stat
 
 Create one source-grounded Chinese DOCX that reconstructs how a life-science paper argues from data. Preserve depth by routing each paper to domain-specific rules instead of forcing every paper into one generic chain.
 
+## Boundaries
+
+- 除用户单独明确要求外，任何改动都绝对不允许修改任何与内容有关的东西：解读质量标准、文档格式（字体、字号、颜色、行距、缩进、对齐、分页、样式定义）、排版契约、模板资产、图题与段落措辞规范一律冻结。
+- 纯技术维护（脚本、缓存、测试、工作区文档）同样受此约束：不得以任何方式改变 DOCX 输出外观或 content.json 的解释规则。
+- 工具层面的效率/质量优化永远不得以格式或内容规则的任何让步为代价；冲突时一律优先保证格式与内容规则不变。
+
 ## Load resources
 
 1. Read `references/reading-method.md` for the shared evidence workflow.
@@ -21,7 +27,8 @@ Create one source-grounded Chinese DOCX that reconstructs how a life-science pap
 5. Read `references/style-contract.md` before generation and audit.
 6. Read `references/figure-extraction.md` before extracting figures from a PDF.
 7. Read `references/workspace-layout.md` before creating any task files.
-8. Treat `assets/reference.docx` and `references/template-contract.md` as the visual authority.
+8. Read `references/subagent-figure-template.md` before dispatching figure-analysis subagents.
+9. Treat `assets/reference.docx` and `references/template-contract.md` as the visual authority.
 
 ## Workflow
 
@@ -29,19 +36,20 @@ Create one source-grounded Chinese DOCX that reconstructs how a life-science pap
 2. Collect the main paper, Supplementary Information, source data, and supplementary movies supplied by the user. Record supplied and missing material in the workspace manifest instead of copying original files or guessing missing evidence.
 3. Determine the paper type, central claims, biological scale, model system, and decisive experiments before drafting. Do not infer the paper's chain from section headings alone.
 4. Build a private claim ledger for every major conclusion: exact claim, direct measurement, intervention, controls, biological replicate, sample size, statistical test, orthogonal validation, alternative explanation, and evidence strength.
-5. Extract every complete main figure and caption into `process/figures/` with `scripts/extract_figures_batch.py`, passing one `--fig "<label>:<page>[:<output.png>]"` entry per figure; pages are processed in parallel and each page is rendered only once. Inspect each crop report and the image at 100% zoom. Never crop all figures with one fixed bottom coordinate or page percentage. Extract only supplementary figures, tables, or movie frames that directly support a main claim.
+5. Extract every complete main figure and caption into `process/figures/` with `scripts/extract_figures_batch.py`, passing one `--fig "<label>:<page>[:<output.png>][:<top_from_page>]"` entry per figure; pages are processed in parallel and each page is rendered only once, and captions are detected before rendering. Crops whose source fingerprint (PDF SHA-256 plus page and options) is unchanged hit the cache on reruns; use `--no-cache` to force re-extraction. Inspect each crop report and the image at 100% zoom. Never crop all figures with one fixed bottom coordinate or page percentage. Extract only supplementary figures, tables, or movie frames that directly support a main claim.
 6. Reconstruct the paper-specific argument chain. Preserve the paper's actual logic even when it does not follow construction, mechanism, animal, or translation stages. Begin each logic-step body with `对应Fig.x：` or the equivalent Table label, using a colon immediately after the evidence label.
-7. Analyze every main figure and every panel against the figure, caption, Results, Methods, statistics, and relevant supplement. Translate the complete main-figure caption title directly into the centered `Figure X：<中文图题>` heading before the image, and translate each panel-specific caption clause before explaining the data. Explain how to read the axes, groups, channels, controls, effect direction, uncertainty, and biological meaning.
-8. Apply the selected domain module. Do not replace domain reasoning with generic questions merely to increase coverage.
-9. Write `process/content.json` following `references/content-schema.md`. Mark uncertainty and inference explicitly. Use Chinese where accurate; retain necessary acronyms and proper nouns.
+7. Analyze every main figure in parallel: dispatch one subagent per main figure using the task template in `references/subagent-figure-template.md`. Give each subagent only its own context pack: the claim ledger from step 4, the figure PNG, its `crop.json` (full caption text, warnings, boundary reason), the supporting Results/Methods/statistics paragraphs, the selected domain module's key checks, and the mapping of this figure's panels to the claim-ledger entries and the logic-chain step from step 6. Do not send the whole paper to every subagent. If the environment cannot dispatch subagents, run the same template serially. Optional model layering: when the environment supports per-subagent models, a faster model may analyze the figures, but the main model must keep the review gate in step 8 and must not skip it.
+8. Merge and spot-check: merge the returned evidence blocks in figure order. For every block, verify text consistency against the caption in `crop.json` (panel labels, n values, statistical tests, control groups, effect direction). Verify every panel text contains both the reading explanation and the supported sub-claim with its reasoning; a claim that is not in the claim ledger or a panel without a claim link goes back to the subagent. Re-read the figure image only for mismatched or low-confidence items, never re-read every figure. Confirm the merged blocks stay consistent with the claim ledger and the logic chain from step 6. Apply the selected domain module here; do not replace domain reasoning with generic questions merely to increase coverage.
+9. Write `process/content.json` following `references/content-schema.md`. Mark uncertainty and inference explicitly. Use Chinese where accurate; retain necessary acronyms and proper nouns. Before running the builder, machine-check the file with `scripts/preflight_content.py --content <process/content.json>` and self-check the remaining audit contract items (figure heading count, panel spacer count, complete captions) so the first build and audit pass succeeds.
 10. Generate and audit the DOCX with the bundled workspace Python runtime. Write the final DOCX to the paper directory and all audit/support artifacts to `process/`:
 
    ```powershell
+   & $PYTHON_BIN scripts/preflight_content.py --content <process/content.json>
    & $PYTHON_BIN scripts/build_reader_docx.py --content <process/content.json> --output <paper/<title>论文逐图解读.docx> --work-dir <process/supplementary>
    & $PYTHON_BIN scripts/audit_reader_docx.py --docx <paper/<title>论文逐图解读.docx> --content <process/content.json> --json-report <process/audit-report.json>
    ```
 
-11. Render the final DOCX to `process/rendered/` with `scripts/render_reader_docx.py --docx <final.docx> --work-dir <process/rendered>` and inspect every page at 100% zoom. The render is cached by the DOCX SHA-256: after a fix cycle, a rerun skips both the Word/LibreOffice conversion and PNG rasterization when the DOCX has not changed, so rerun it before each inspection and it will only reconvert when needed. Fix incomplete captions, unreadable figures, isolated headings, clipping, overlap, excessive blank space, and awkward page breaks.
+11. Render the final DOCX to `process/rendered/` with `scripts/render_reader_docx.py --docx <final.docx> --work-dir <process/rendered>` and inspect every page at 100% zoom. The render is cached by the DOCX SHA-256 plus the PNG scale and conversion engine: after a fix cycle, a rerun skips both the Word/LibreOffice conversion and PNG rasterization when nothing changed, so rerun it before each inspection and it will only reconvert when needed. On a cache hit the script prints each page prefixed with `changed` or `unchanged` (page PNG hashes are compared with the previous render). On the first pass inspect every page. After a fix cycle, re-inspect only the pages marked `changed`, and when the total page count changed, also the pages adjacent to the break shift. Fix incomplete captions, unreadable figures, isolated headings, clipping, overlap, excessive blank space, and awkward page breaks.
 12. Return only the final DOCX unless the user requests additional files.
 
 ## Depth gates

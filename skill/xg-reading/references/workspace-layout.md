@@ -25,4 +25,10 @@ outputs/<paper-title>/
 
 原始主文、补充材料和视频不复制，只在`source-manifest.json`中记录绝对路径、SHA-256和发现状态。图像裁图与对应的`.crop.json`进入`process/figures/`；补图和视频代表帧分别进入`process/supplementary/`和`process/movie-frames/`；渲染PDF和逐页PNG进入`process/rendered/`。
 
-输出根目录解析顺序：本地`xg-reading.local.json`配置、Skill路径上方的XG-Reading仓库根目录、命令行`--repository-root`。若无法解析，停止并要求配置路径，绝不将产物写进安装目录。
+输出根目录解析顺序（与`scripts/reader_workspace.py`一致）：命令行`--repository-root`、本地`xg-reading.local.json`配置、Skill路径上方的XG-Reading仓库根目录。若无法解析，停止并要求配置路径，绝不将产物写进安装目录。
+
+只查路径不建目录时可用：
+
+```powershell
+& $PYTHON_BIN scripts/reader_workspace.py resolve-root
+```
