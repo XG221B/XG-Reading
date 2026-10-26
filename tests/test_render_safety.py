@@ -391,6 +391,8 @@ class TestRenderMainCache:
         work_dir = tmp_path / "rendered"
         work_dir.mkdir()
         docx_path = self.make_docx(tmp_path)
+        monkeypatch.setattr(render, "available_engine", lambda: "word")
+        monkeypatch.setattr(render, "engine_signature", lambda engine: "word:fake")
         monkeypatch.setattr(render, "wait_for_lock", lambda *args, **kwargs: False)
         assert render.main(["--docx", str(docx_path), "--work-dir", str(work_dir)]) == 2
         captured = capsys.readouterr()
