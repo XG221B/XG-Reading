@@ -14,10 +14,12 @@ from typing import Any
 
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
+from file_utils import atomic_write_text
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
@@ -40,6 +42,13 @@ STYLE_FIGURE_TRANSLATION = "FER Figure Translation"
 STYLE_SUPPLEMENT = "FER Supplement"
 STYLE_PICTURE = "FER Picture"
 STYLE_BULLET = "FER Bullet"
+
+MATERIALS_HEADING = "材料体系与设计思路"
+MATERIALS_TABLE_HEADERS = ("材料/组分", "作用")
+MATERIALS_SUMMARY_LABEL = "设计思路："
+MATERIALS_TABLE_WIDTH_CM = 16.99
+MATERIALS_TABLE_COLUMN_WIDTHS_CM = (4.4, 12.59)
+MATERIALS_TABLE_LINE_SPACING = 1.15
 
 
 def parse_args() -> argparse.Namespace:
@@ -85,6 +94,35 @@ def require_list(data: dict[str, Any], key: str) -> list[Any]:
     return value
 
 
+def validate_materials(data: dict[str, Any]) -> None:
+    materials = data.get("materials")
+    if materials is None:
+        return
+    if not isinstance(materials, dict):
+        raise ValueError("materials must be an object")
+    heading = materials.get("heading")
+    if heading is not None and not clean_text(heading):
+        raise ValueError("materials.heading must be non-empty when present")
+    items = materials.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError("materials.items must be a non-empty array")
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"materials.items[{index}] must be an object")
+        for key in ("name", "role"):
+            if not clean_text(item.get(key)):
+                raise ValueError(f"materials.items[{index}].{key} is required")
+    if not clean_text(materials.get("summary")):
+        raise ValueError("materials.summary is required")
+    structure = materials.get("structure")
+    if structure is not None:
+        if not isinstance(structure, dict):
+            raise ValueError("materials.structure must be an object")
+        for key in ("title", "image", "explanation"):
+            if not clean_text(structure.get(key)):
+                raise ValueError(f"materials.structure.{key} is required")
+
+
 def validate_content(data: dict[str, Any]) -> None:
     for key in ("document_title", "citation"):
         if not clean_text(data.get(key)):
@@ -93,6 +131,8 @@ def validate_content(data: dict[str, Any]) -> None:
     positioning = require_mapping(data, "field_positioning")
     if not require_list(positioning, "paragraphs"):
         raise ValueError("field_positioning.paragraphs must not be empty")
+
+    validate_materials(data)
 
     logic_chain = require_list(data, "logic_chain")
     if not logic_chain:
@@ -309,6 +349,130 @@ def add_bullet(document: Document, text: str) -> None:
     add_text_run(paragraph, text)
 
 
+def set_table_borders(table) -> None:
+    """Apply the retained black single-line grid without any shading."""
+    tbl_pr = table._tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        element = OxmlElement(f"w:{edge}")
+        element.set(qn("w:val"), "single")
+        element.set(qn("w:sz"), "6")
+        element.set(qn("w:space"), "0")
+        element.set(qn("w:color"), "000000")
+        borders.append(element)
+    tbl_pr.append(borders)
+
+
+def set_table_column_widths(table, widths_cm: tuple[float, ...]) -> None:
+    table.autofit = False
+    tbl_pr = table._tbl.tblPr
+    layout = OxmlElement("w:tblLayout")
+    layout.set(qn("w:type"), "fixed")
+    tbl_pr.append(layout)
+    for index, width_cm in enumerate(widths_cm):
+        table.columns[index].width = Cm(width_cm)
+    for row in table.rows:
+        for index, width_cm in enumerate(widths_cm):
+            row.cells[index].width = Cm(width_cm)
+
+
+def prevent_row_split(table) -> None:
+    for row in table.rows:
+        row._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
+
+
+def add_table_cell(
+    cell,
+    text: str,
+    *,
+    bold: bool,
+    alignment,
+) -> None:
+    paragraph = cell.paragraphs[0]
+    paragraph.style = STYLE_BODY
+    paragraph.paragraph_format.alignment = alignment
+    paragraph.paragraph_format.first_line_indent = Cm(0)
+    paragraph.paragraph_format.left_indent = Cm(0)
+    paragraph.paragraph_format.line_spacing = MATERIALS_TABLE_LINE_SPACING
+    paragraph.paragraph_format.space_before = Pt(2)
+    paragraph.paragraph_format.space_after = Pt(2)
+    paragraph.paragraph_format.widow_control = True
+    add_text_run(paragraph, text, bold)
+    cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+
+def add_materials_table(document: Document, items: list[dict[str, Any]]) -> None:
+    columns = len(MATERIALS_TABLE_HEADERS)
+    table = document.add_table(rows=len(items) + 1, cols=columns)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    set_table_borders(table)
+    set_table_column_widths(table, MATERIALS_TABLE_COLUMN_WIDTHS_CM)
+    for column, header in enumerate(MATERIALS_TABLE_HEADERS):
+        add_table_cell(
+            table.cell(0, column),
+            header,
+            bold=True,
+            alignment=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+    for row_index, item in enumerate(items, start=1):
+        add_table_cell(
+            table.cell(row_index, 0),
+            clean_text(item.get("name")),
+            bold=True,
+            alignment=WD_ALIGN_PARAGRAPH.LEFT,
+        )
+        add_table_cell(
+            table.cell(row_index, 1),
+            clean_text(item.get("role")),
+            bold=False,
+            alignment=WD_ALIGN_PARAGRAPH.LEFT,
+        )
+    prevent_row_split(table)
+
+
+def materials_structure_heading(structure: dict[str, Any]) -> str:
+    label = clean_text(structure.get("label")).rstrip("：:")
+    title = clean_text(structure.get("title"))
+    return f"{label}：{title}" if label else title
+
+
+def add_materials_section(
+    document: Document,
+    materials: dict[str, Any],
+    content_dir: Path,
+    image_entries: list[dict[str, Any]],
+) -> None:
+    """Open the reader with the material system before field positioning."""
+    add_paragraph(
+        document,
+        clean_text(materials.get("heading")) or MATERIALS_HEADING,
+        STYLE_SECTION,
+    )
+    add_materials_table(document, materials["items"])
+    structure = materials.get("structure")
+    if structure:
+        structure_heading = materials_structure_heading(structure)
+        structure_paragraph = add_paragraph(document, structure_heading, STYLE_STEP)
+        structure_paragraph.paragraph_format.space_before = Pt(6)
+        structure_image = resolve_path(structure["image"], content_dir)
+        add_picture(
+            document,
+            structure_image,
+            f"{structure_heading}（原图）",
+            15.5,
+            18.3,
+        )
+        image_entries.append(
+            {
+                "kind": "materials_structure",
+                "object": structure_heading,
+                **image_source_record(structure_image),
+            }
+        )
+        add_paragraph(document, structure["explanation"], STYLE_BODY)
+    add_labeled_body(document, MATERIALS_SUMMARY_LABEL, clean_text(materials["summary"]))
+
+
 def image_dimensions(path: Path, max_width_cm: float, max_height_cm: float):
     with Image.open(path) as image:
         width_px, height_px = image.size
@@ -326,7 +490,7 @@ def add_picture(
     alt_text: str,
     max_width_cm: float,
     max_height_cm: float,
-) -> None:
+):
     width_cm, height_cm = image_dimensions(path, max_width_cm, max_height_cm)
     paragraph = document.add_paragraph(style=STYLE_PICTURE)
     run = paragraph.add_run()
@@ -334,6 +498,53 @@ def add_picture(
         str(path), width=Cm(width_cm), height=Cm(height_cm)
     )
     inline_shape._inline.docPr.set("descr", clean_text(alt_text))
+    return inline_shape
+
+
+def image_source_record(path: Path) -> dict[str, Any]:
+    resolved = path.resolve()
+    return {
+        "source": str(resolved),
+        "source_sha256": sha256(resolved).lower(),
+    }
+
+
+def write_image_manifest(
+    document: Document,
+    output: Path,
+    content_dir: Path,
+    entries: list[dict[str, Any]],
+) -> Path:
+    """Record the ordered image occurrence map used to audit image identity."""
+    inline_shapes = document.inline_shapes
+    if len(inline_shapes) != len(entries):
+        raise ValueError(
+            f"image manifest mismatch: {len(entries)} planned images but "
+            f"{len(inline_shapes)} embedded"
+        )
+    records = []
+    for entry, shape in zip(entries, inline_shapes):
+        relationship_id = shape._inline.graphic.graphicData.pic.blipFill.blip.embed
+        blob = document.part.related_parts[relationship_id].blob
+        records.append(
+            {
+                **entry,
+                "embedded_sha256": hashlib.sha256(blob).hexdigest(),
+                "width_emu": int(shape.width),
+                "height_emu": int(shape.height),
+            }
+        )
+    manifest = {
+        "schema_version": 1,
+        "docx_sha256": sha256(output).lower(),
+        "images": records,
+    }
+    manifest_path = content_dir / "image-manifest.json"
+    atomic_write_text(
+        manifest_path,
+        json.dumps(manifest, ensure_ascii=False, indent=2),
+    )
+    return manifest_path
 
 
 def label_font(size: int = 28):
@@ -515,6 +726,11 @@ def build_document(
     add_paragraph(document, data["document_title"], STYLE_TITLE)
     add_paragraph(document, data["citation"], STYLE_METADATA)
 
+    image_entries: list[dict[str, Any]] = []
+    materials = data.get("materials")
+    if materials:
+        add_materials_section(document, materials, content_dir, image_entries)
+
     positioning = data["field_positioning"]
     add_paragraph(
         document,
@@ -555,6 +771,7 @@ def build_document(
         evidence_blocks = data.get("evidence_blocks") or data.get("figures") or []
         for index, figure_data in enumerate(evidence_blocks, start=1):
             heading = figure_heading(figure_data, index)
+            label = evidence_label(figure_data, index)
             add_paragraph(document, heading, STYLE_FIGURE)
             main_image = resolve_path(figure_data["image"], content_dir)
             add_picture(
@@ -563,6 +780,13 @@ def build_document(
                 f"{heading}完整图表和说明",
                 15.5,
                 18.3,
+            )
+            image_entries.append(
+                {
+                    "kind": "evidence_main",
+                    "object": label,
+                    **image_source_record(main_image),
+                }
             )
             add_paragraph(document, figure_data["paper_claim"], STYLE_BODY)
             panel_explanations = figure_data["panel_explanations"]
@@ -596,9 +820,28 @@ def build_document(
                     14.6,
                     16.5,
                 )
+                members = []
+                for item in support_images:
+                    member_path = resolve_path(item["path"], content_dir)
+                    members.append(
+                        {
+                            "path": str(member_path),
+                            "sha256": sha256(member_path).lower(),
+                        }
+                    )
+                image_entries.append(
+                    {
+                        "kind": "support_sheet",
+                        "object": label,
+                        "source": None,
+                        "source_sha256": None,
+                        "members": members,
+                    }
+                )
 
         output.parent.mkdir(parents=True, exist_ok=True)
         save_document(document, output)
+        write_image_manifest(document, output, content_dir, image_entries)
 
 
 def main() -> None:

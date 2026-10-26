@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pypdfium2 as pdfium
 from extract_figure_region import (
+    CROP_REPORT_SCHEMA_VERSION,
     caption_for_page,
     crop_from_rendered,
 )
@@ -138,15 +139,27 @@ def build_source(fig: dict, options: dict, page_index: int) -> dict:
     }
 
 
-def cache_hit(report_path: Path, source: dict) -> bool:
-    """True when a previous crop report exists and matches the same source."""
-    if not report_path.exists():
+def cache_hit(report_path: Path, source: dict, output: Path) -> bool:
+    """True when a previous crop report matches the source and its PNG intact."""
+    if not report_path.exists() or not output.exists():
         return False
     try:
         existing = json.loads(report_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return False
-    return existing.get("source") == source
+    if not isinstance(existing, dict):
+        return False
+    if existing.get("schema_version") != CROP_REPORT_SCHEMA_VERSION:
+        return False
+    if existing.get("source") != source:
+        return False
+    recorded = existing.get("output_sha256")
+    if not isinstance(recorded, str) or not recorded:
+        return False
+    try:
+        return sha256_file(output).lower() == recorded.lower()
+    except OSError:
+        return False
 
 
 def extract_page(
@@ -340,7 +353,7 @@ def main() -> None:
         output = args.outdir / (fig["output"] if fig["output"] else default_output_name(fig["label"]))
         report_path = output.with_suffix(output.suffix + ".crop.json")
         source = build_source(fig, options, fig["page"])
-        if not args.no_cache and cache_hit(report_path, source) and output.exists():
+        if not args.no_cache and cache_hit(report_path, source, output):
             try:
                 cached[(fig["page"], fig["label"])] = json.loads(
                     report_path.read_text(encoding="utf-8")

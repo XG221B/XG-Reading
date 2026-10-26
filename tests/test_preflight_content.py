@@ -10,6 +10,25 @@ def make_content(tmp_path, **overrides):
     content = {
         "document_title": "题目与逐图解读",
         "citation": "论文：Author et al., Title, Journal,Year",
+        "materials": {
+            "items": [
+                {
+                    "name": "介孔二氧化硅纳米颗粒",
+                    "role": "负载药物并在肿瘤微环境中响应释放",
+                },
+                {
+                    "name": "透明质酸外壳",
+                    "role": "提高血液循环稳定性并靶向肿瘤细胞",
+                },
+            ],
+            "structure": {
+                "label": "Fig.1A",
+                "title": "材料结合后的结构示意",
+                "image": "fig1.png",
+                "explanation": "各组分通过静电吸附结合为核壳结构，为响应性释放提供结构基础。",
+            },
+            "summary": "本文用核壳结构材料体系以响应性释放的方式解决了药物在肿瘤部位富集不足的问题。",
+        },
         "field_positioning": {
             "heading": "领域定位与本文解决的问题",
             "paragraphs": ["领域问题", "具体缺口", "本文贡献与边界"],

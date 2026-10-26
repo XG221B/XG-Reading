@@ -1,0 +1,4 @@
+# XG-Reading runtime dependencies. Python 3.11 or newer is required.
+python-docx>=1.1.2,<2.0
+Pillow>=10.0,<13.0
+pypdfium2>=4.30,<6.0

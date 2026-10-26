@@ -4,19 +4,83 @@ on:
   push:
   pull_request:
 
+# E01 test tiers / platforms (what is and is not actually verified)
+#
+# Verified here:
+#   - Python 3.11 (declared minimum) and 3.12 (current development version)
+#     on Windows and Ubuntu.
+#   - Windows: the full test suite.
+#   - Ubuntu: the pure-Python test suite. No real Word or LibreOffice
+#     conversion is exercised there; tests that need a real Office renderer or
+#     Windows-only behavior must be marked `office_integration` / `windows_only`
+#     (registered in tests/conftest.py) so `test-linux` can exclude them.
+#   - Lint: `ruff check .` (covers skill/xg-reading/run.py, the scripts, and the
+#     tests) on Python 3.12.
+#
+# NOT verified: macOS. No CI job runs on macOS, and no claim is made that the
+# toolkit works there. The full dependency range declared in the requirements
+# files is also not exhaustively verified (see below).
+#
+# Dependency scope: requirements.txt and skill/xg-reading/requirements.txt
+# declare python-docx>=1.1.2,<2.0, Pillow>=10.0,<13.0, pypdfium2>=4.30,<6.0;
+# requirements-dev.txt declares pytest>=8.0 and ruff>=0.9. The jobs below
+# install the newest release allowed by those bounds on each matrix Python
+# version, so only the versions resolved in those jobs are exercised. Passing CI
+# does not prove that every version inside the declared ranges works.
+
 jobs:
-  test:
-    runs-on: windows-latest
+  lint:
+    name: lint (ruff, includes run.py)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Lint repository (skill scripts, run.py, tests)
+        run: ruff check .
+
+  test:
+    name: test (windows-latest, Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r requirements-dev.txt
-      - name: Lint
-        run: ruff check skill/xg-reading/scripts tests
-      - name: Test
+      - name: Test (full suite)
         run: pytest tests -q
+
+  test-linux:
+    name: test (ubuntu-latest, Python ${{ matrix.python-version }}, no Office)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      # No Word/LibreOffice integration here. Tests marked as requiring a real
+      # renderer or Windows behavior are excluded; today the pure-Python suite
+      # still covers every test file.
+      - name: Test (pure Python, no real Office conversion)
+        run: pytest tests -q -m "not office_integration and not windows_only"

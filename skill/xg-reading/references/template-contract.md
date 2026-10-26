@@ -12,20 +12,22 @@
 ## Visual pattern
 
 1. Begin with the paper title and citation.
-2. Establish the field-level direction, the problem already addressed by the field, the remaining problem, and the problem addressed by this paper.
-3. Present the paper-specific figure/table logic chain before detailed figure reading.
-4. Add an optional “未来展望” only when it is grounded in the authors' Discussion, Conclusion, or stated future work; otherwise omit it.
-5. Center each chapter-level heading, while keeping paragraph-level reading prompts left aligned.
-6. Start every evidence block on a new page with `Figure X：<完整中文图题>` centered above the complete figure or table with caption.
-7. Follow the image with the authors' figure-level claim as direct prose, without a visible prompt label.
-8. Use left-aligned translated panel titles followed by panel-level interpretation. Keep combined panel titles in one heading when the panels are explained together, and place a 0.2-line blank spacer between adjacent panel groups.
-9. End each main-figure block with `Fig.x总结：`, followed by relevant supplementary support.
-10. Keep supplementary evidence next to the main claim it changes.
+2. Present the material system: a two-column material/component table with each component's role, the paper's original structure figure, and a two- to three-sentence design rationale. This section comes after the title and citation and before field positioning.
+3. Establish the field-level direction, the problem already addressed by the field, the remaining problem, and the problem addressed by this paper.
+4. Present the paper-specific figure/table logic chain before detailed figure reading.
+5. Add an optional “未来展望” only when it is grounded in the authors' Discussion, Conclusion, or stated future work; otherwise omit it.
+6. Center each chapter-level heading, while keeping paragraph-level reading prompts left aligned.
+7. Start every evidence block on a new page with `Figure X：<完整中文图题>` centered above the complete figure or table with caption.
+8. Follow the image with the authors' figure-level claim as direct prose, without a visible prompt label.
+9. Use left-aligned translated panel titles followed by panel-level interpretation. Keep combined panel titles in one heading when the panels are explained together, and place a 0.2-line blank spacer between adjacent panel groups.
+10. End each main-figure block with `Fig.x总结：`, followed by relevant supplementary support.
+11. Keep supplementary evidence next to the main claim it changes.
 
 ## Editable and preserved elements
 
 - Replace all placeholder text with source-grounded paper content.
 - Preserve page geometry, font system, hierarchy, black visual treatment, paragraph rhythm, section order, and figure-centered flow.
+- Keep the material-system table at full text width (16.99 cm) with the black single-line grid and no shading.
 - Allow any number of evidence blocks. Never add, remove, or reorder evidence merely to imitate the template length.
 - Keep the retained reference unchanged; build outputs from a working document.
 

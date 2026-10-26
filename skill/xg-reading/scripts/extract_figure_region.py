@@ -7,14 +7,16 @@ import argparse
 import json
 import math
 import os
-import re
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
 
 import pypdfium2 as pdfium
-from file_utils import atomic_replace, atomic_write_text
+from file_utils import atomic_replace, atomic_write_text, sha256_file
+from label_utils import caption_prefix_matches, caption_search_terms, parse_label
 from PIL import Image
+
+CROP_REPORT_SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -59,15 +61,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def caption_search_terms(label: str) -> list[str]:
-    number = re.search(r"\d+[A-Za-z]?", label)
-    if not number:
-        return [label.strip()]
-    token = number.group(0)
-    return [f"Fig. {token}", f"Fig.{token}", f"Figure {token}"]
+def find_caption_start(text_page, label: str) -> tuple[int, str]:
+    """Locate the caption, keeping the object type and number boundary.
 
-
-def find_caption_start(text_page, label: str) -> int:
+    The first digits in a label are never used directly: ``Fig. S1``,
+    ``Table 1``, and ``Fig. 10`` are searched with type-specific terms, and a
+    hit followed by another digit or letter is rejected so ``Fig. 1`` cannot
+    select ``Fig. 10`` or ``Fig. 1A``.
+    """
     candidates = []
     for term in caption_search_terms(label):
         searcher = text_page.search(term, match_case=False, match_whole_word=False)
@@ -76,8 +77,23 @@ def find_caption_start(text_page, label: str) -> int:
             if occurrence is None:
                 break
             start, count = occurrence
+            before = text_page.get_text_range(start - 1, 1) if start > 0 else ""
+            after_char = text_page.get_text_range(start + count, 1)
+            if before and (before.isalnum() or before in "._-"):
+                continue
+            if after_char and after_char.isalnum():
+                continue
+            if after_char in "_-":
+                continue
+            if after_char == ".":
+                # A caption marker commonly ends with a full stop ("Fig. 1.").
+                # Keep rejecting dotted continuations such as "Fig. 1.2" or
+                # "Fig. 1.A" while allowing "Fig. 1. Title".
+                following = text_page.get_text_range(start + count + 1, 1)
+                if following and following.isalnum():
+                    continue
             before_start = max(0, start - 3)
-            before = text_page.get_text_range(before_start, start - before_start)
+            before_text = text_page.get_text_range(before_start, start - before_start)
             after = text_page.get_text_range(start + count, 12)
             stripped = after.lstrip()
             score = 0
@@ -85,20 +101,26 @@ def find_caption_start(text_page, label: str) -> int:
                 score += 10
             elif stripped.startswith((":", ".", "-")):
                 score += 5
-            if "\n" in before or "\r" in before or start == 0:
+            if "\n" in before_text or "\r" in before_text or start == 0:
                 score += 3
             if stripped and stripped[0].isalnum():
                 score -= 8
             candidates.append((score, start, term, after))
     if not candidates:
-        raise ValueError(f"Caption label not found: {label}")
+        parsed = parse_label(label)
+        kind = parsed.kind if parsed is not None else "unknown"
+        raise ValueError(
+            f"caption_not_found: no {kind} caption marker for {label!r} on this page; "
+            "the text layer may be absent or the caption may need a manual region"
+        )
     candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
-    score, start, _, _ = candidates[0]
+    score, start, term, _ = candidates[0]
     if score < 3:
         raise ValueError(
-            f"Only in-text references were found for {label}; caption marker is uncertain"
+            f"caption_uncertain: only in-text references were found for {label!r}; "
+            "caption marker is uncertain"
         )
-    return start
+    return start, term
 
 
 def split_lines(text_page, start: int) -> list[TextLine]:
@@ -167,7 +189,7 @@ def cluster_lines(lines: list[TextLine], tolerance: float = 2.0):
 
 
 def detect_caption(text_page, label: str, page_height: float):
-    caption_start = find_caption_start(text_page, label)
+    caption_start, matched_term = find_caption_start(text_page, label)
     lines = split_lines(text_page, caption_start)
     if not lines:
         raise ValueError(f"Caption line coordinates could not be recovered: {label}")
@@ -253,15 +275,19 @@ def detect_caption(text_page, label: str, page_height: float):
     if boundary_reason == "end_of_text_region":
         confidence = "medium"
         warnings.append("No following text block was available for boundary confirmation")
-    if not re.match(r"(?i)\s*(?:fig|figure)", caption_text):
+    if not caption_prefix_matches(caption_text, label):
         confidence = "low"
-        warnings.append("Recovered caption text does not begin with a Figure label")
+        warnings.append(
+            "Recovered caption text does not begin with the object label implied by "
+            f"{label!r}"
+        )
 
     return {
         "caption_bottom": caption_bottom,
         "caption_top": caption_top,
         "caption_text": caption_text,
         "caption_line_count": len(caption_lines),
+        "caption_label_matched": matched_term,
         "line_spacing": line_spacing,
         "boundary_reason": boundary_reason,
         "boundary_gap": boundary_gap,
@@ -310,6 +336,16 @@ def detect_top(image: Image.Image, left: int, right: int, caption_top: int):
 def caption_for_page(page, page_height: float, label: str) -> dict:
     """Detect the caption region from the page text layer (no rendering)."""
     text_page = page.get_textpage()
+    try:
+        char_count = text_page.count_chars()
+    except Exception as error:  # PDFium text-layer failures are boxed for callers
+        raise ValueError(f"unsupported_text_layer: {error}") from error
+    if char_count == 0:
+        raise ValueError(
+            "unsupported_text_layer: the PDF page has no text layer; caption "
+            "detection needs a text layer, so supply a manual crop region or use "
+            "a text-based PDF"
+        )
     return detect_caption(text_page, label, page_height)
 
 
@@ -378,12 +414,15 @@ def crop_from_rendered(
     atomic_replace(temp_output, output)
 
     return {
+        "schema_version": CROP_REPORT_SCHEMA_VERSION,
         "label": label,
         "output": str(output.resolve()),
+        "output_sha256": sha256_file(output),
         "confidence": caption["confidence"],
         "warnings": caption["warnings"],
         "caption_text": caption["caption_text"],
         "caption_line_count": caption["caption_line_count"],
+        "caption_label_matched": caption.get("caption_label_matched"),
         "caption_boundary_reason": caption["boundary_reason"],
         "caption_gap_points": caption["boundary_gap"],
         "next_text_preview": caption["next_text_preview"],

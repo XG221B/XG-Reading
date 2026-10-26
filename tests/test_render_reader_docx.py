@@ -88,19 +88,24 @@ class TestConvertWithWordFailure:
 
         def fake_run(command, check=True, timeout=None, **kwargs):
             calls.append(command)
-            if len(calls) == 1:
+            if "-File" in command:
                 raise subprocess.CalledProcessError(1, command)
-            return subprocess.CompletedProcess(command, 0)
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
+        monkeypatch.setattr(render, "find_word_powershell", lambda: "powershell")
         monkeypatch.setattr(render.subprocess, "run", fake_run)
         with pytest.raises(RuntimeError, match="Word"):
             render.convert_with_word(render.Path("x.docx"), render.Path("x.pdf"))
-        assert len(calls) >= 2
+        assert any("-File" in call for call in calls)
+        cleanup = [call for call in calls if "-Command" in call]
+        assert cleanup, "a failed export must attempt cleanup"
+        assert any("notcontains" in part for call in cleanup for part in call)
 
     def test_timeout_raises_friendly_error(self, monkeypatch):
         def fake_run(command, check=True, timeout=None, **kwargs):
             raise subprocess.TimeoutExpired(command, timeout)
 
+        monkeypatch.setattr(render, "find_word_powershell", lambda: "powershell")
         monkeypatch.setattr(render.subprocess, "run", fake_run)
         with pytest.raises(RuntimeError, match="Word"):
             render.convert_with_word(render.Path("x.docx"), render.Path("x.pdf"))

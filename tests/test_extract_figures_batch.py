@@ -1,3 +1,5 @@
+import hashlib
+import json
 from pathlib import Path
 
 import extract_figures_batch as batch
@@ -248,38 +250,83 @@ class TestExtractPage:
         assert successes[0]["label"] == "Fig. 2"
 
 
+CACHE_SOURCE = {"pdf_sha256": "x", "page": 3, "label": "Fig. 1"}
+
+
 class TestCacheHit:
+    def write_crop(self, tmp_path, *, report=None, output_bytes=b"png-bytes"):
+        output = tmp_path / "Fig1.png"
+        output.write_bytes(output_bytes)
+        payload = report
+        if payload is None:
+            payload = {
+                "schema_version": 2,
+                "source": CACHE_SOURCE,
+                "output": str(output),
+                "output_sha256": hashlib.sha256(output_bytes).hexdigest(),
+            }
+        report_path = tmp_path / "Fig1.png.crop.json"
+        report_path.write_text(
+            payload if isinstance(payload, str) else json.dumps(payload),
+            encoding="utf-8",
+        )
+        return report_path, output
+
     def test_missing_report_misses(self, tmp_path):
-        assert batch.cache_hit(tmp_path / "Fig1.png.crop.json", {"a": 1}) is False
+        output = tmp_path / "Fig1.png"
+        output.write_bytes(b"png")
+        assert batch.cache_hit(
+            tmp_path / "Fig1.png.crop.json", CACHE_SOURCE, output
+        ) is False
+
+    def test_missing_output_misses(self, tmp_path):
+        report_path, output = self.write_crop(tmp_path)
+        output.unlink()
+        assert batch.cache_hit(report_path, CACHE_SOURCE, output) is False
 
     def test_corrupt_report_misses(self, tmp_path):
-        report = tmp_path / "Fig1.png.crop.json"
-        report.write_text("{broken", encoding="utf-8")
-        assert batch.cache_hit(report, {"a": 1}) is False
+        report_path, output = self.write_crop(tmp_path, report="{broken")
+        assert batch.cache_hit(report_path, CACHE_SOURCE, output) is False
 
-    def test_matching_source_hits(self, tmp_path):
-        report = tmp_path / "Fig1.png.crop.json"
-        report.write_text(
-            '{"source": {"pdf_sha256": "x", "page": 3, "label": "Fig. 1"}}',
-            encoding="utf-8",
-        )
-        source = {"pdf_sha256": "x", "page": 3, "label": "Fig. 1"}
-        assert batch.cache_hit(report, source) is True
+    def test_non_object_report_misses(self, tmp_path):
+        report_path, output = self.write_crop(tmp_path, report="[]")
+        assert batch.cache_hit(report_path, CACHE_SOURCE, output) is False
+
+    def test_matching_report_and_output_hits(self, tmp_path):
+        report_path, output = self.write_crop(tmp_path)
+        assert batch.cache_hit(report_path, CACHE_SOURCE, output) is True
+
+    def test_wrong_schema_version_misses(self, tmp_path):
+        report = {
+            "schema_version": 1,
+            "source": CACHE_SOURCE,
+            "output_sha256": hashlib.sha256(b"png-bytes").hexdigest(),
+        }
+        report_path, output = self.write_crop(tmp_path, report=report)
+        assert batch.cache_hit(report_path, CACHE_SOURCE, output) is False
 
     def test_mismatched_source_misses(self, tmp_path):
-        report = tmp_path / "Fig1.png.crop.json"
-        report.write_text(
-            '{"source": {"pdf_sha256": "old", "page": 3, "label": "Fig. 1"}}',
-            encoding="utf-8",
-        )
-        source = {"pdf_sha256": "new", "page": 3, "label": "Fig. 1"}
-        assert batch.cache_hit(report, source) is False
+        report_path, output = self.write_crop(tmp_path)
+        changed = {**CACHE_SOURCE, "pdf_sha256": "new"}
+        assert batch.cache_hit(report_path, changed, output) is False
 
     def test_legacy_report_without_source_misses(self, tmp_path):
-        report = tmp_path / "Fig1.png.crop.json"
-        report.write_text('{"label": "Fig. 1"}', encoding="utf-8")
-        source = {"pdf_sha256": "new", "page": 3, "label": "Fig. 1"}
-        assert batch.cache_hit(report, source) is False
+        report = {
+            "schema_version": 2,
+            "output_sha256": hashlib.sha256(b"png-bytes").hexdigest(),
+        }
+        report_path, output = self.write_crop(tmp_path, report=report)
+        assert batch.cache_hit(report_path, CACHE_SOURCE, output) is False
+
+    def test_missing_output_sha256_misses(self, tmp_path):
+        report = {"schema_version": 2, "source": CACHE_SOURCE}
+        report_path, output = self.write_crop(tmp_path, report=report)
+        assert batch.cache_hit(report_path, CACHE_SOURCE, output) is False
+
+    def test_changed_output_png_misses(self, tmp_path):
+        report_path, output = self.write_crop(tmp_path)
+        output.write_bytes(b"different-png-bytes")
+        assert batch.cache_hit(report_path, CACHE_SOURCE, output) is False
 
 
 class TestBatchAggregation:

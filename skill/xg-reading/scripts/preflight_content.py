@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from build_reader_docx import clean_text
+from label_utils import parse_label
 
 HEADING_PATTERN = re.compile(
     r"^(?:Figure|Fig\.?|Table)\s*\d+[A-Za-z]?\s*[：:]", re.IGNORECASE
@@ -70,6 +71,122 @@ def resolve_image(raw: str, base_dir: Path) -> Path | None:
     return resolved if resolved.exists() else None
 
 
+def check_materials(
+    data: dict[str, Any], base_dir: Path, errors: list[str], warnings: list[str]
+) -> None:
+    materials = data.get("materials")
+    if materials is None:
+        warnings.append(
+            "materials section absent: required for papers centered on an "
+            "engineered material, device, or micro/nanorobotic system"
+        )
+        return
+    if not isinstance(materials, dict):
+        errors.append("materials must be an object")
+        return
+    heading = materials.get("heading")
+    if heading is not None and not clean_text(heading):
+        errors.append("materials.heading must be non-empty when present")
+    items = materials.get("items")
+    if not isinstance(items, list) or not items:
+        errors.append("materials.items must be a non-empty array")
+    else:
+        for index, item in enumerate(items, start=1):
+            prefix = f"materials.items[{index}]"
+            if not isinstance(item, dict):
+                errors.append(f"{prefix} must be an object")
+                continue
+            for key in ("name", "role"):
+                if not clean_text(item.get(key)):
+                    errors.append(f"{prefix}.{key} is required")
+    if not clean_text(materials.get("summary")):
+        errors.append("materials.summary is required")
+    structure = materials.get("structure")
+    if structure is not None:
+        if not isinstance(structure, dict):
+            errors.append("materials.structure must be an object")
+        else:
+            for key in ("title", "image", "explanation"):
+                if not clean_text(structure.get(key)):
+                    errors.append(f"materials.structure.{key} is required")
+            image = clean_text(structure.get("image"))
+            if image and resolve_image(image, base_dir) is None:
+                errors.append(f"materials.structure.image cannot be resolved: {image}")
+
+
+def check_block_label(
+    block: dict[str, Any], prefix: str, errors: list[str], warnings: list[str]
+):
+    """Return the block's parsed object, checking label/title identity."""
+    title = clean_text(block.get("title"))
+    raw_label = clean_text(block.get("label"))
+    title_parsed = parse_label(title)
+    label_parsed = parse_label(raw_label) if raw_label else None
+    if (
+        label_parsed is not None
+        and title_parsed is not None
+        and not label_parsed.matches(title_parsed)
+    ):
+        errors.append(
+            f"{prefix}.label {raw_label!r} does not match title object "
+            f"{title_parsed.object_id}"
+        )
+    block_object = label_parsed or title_parsed
+    if block_object is None:
+        warnings.append(
+            f"{prefix} has no parseable figure/table label; source coverage is unverified"
+        )
+    return block_object, title_parsed
+
+
+def check_panel_coverage(
+    panels: list[Any],
+    block_object,
+    title_parsed,
+    prefix: str,
+    errors: list[str],
+    warnings: list[str],
+) -> None:
+    """Check that panel titles belong to this object and cover letters once."""
+    if block_object is None or title_parsed is None:
+        return
+    seen: dict[str, int] = {}
+    ordered: list[str] = []
+    for panel_index, panel in enumerate(panels, start=1):
+        if not isinstance(panel, dict):
+            continue
+        panel_prefix = f"{prefix}.panel_explanations[{panel_index}]"
+        parsed = parse_label(clean_text(panel.get("title")))
+        if parsed is None:
+            continue
+        if not parsed.matches(block_object):
+            errors.append(
+                f"{panel_prefix}.title object {parsed.object_id} does not belong to "
+                f"block object {block_object.object_id}"
+            )
+            continue
+        for letter in parsed.panels:
+            if letter in seen:
+                errors.append(
+                    f"{panel_prefix}.title repeats panel {letter} already covered by "
+                    f"panel_explanations[{seen[letter]}]"
+                )
+                continue
+            seen[letter] = panel_index
+            ordered.append(letter)
+    if not ordered:
+        return
+    highest = max(ord(letter) for letter in ordered)
+    missing = [
+        chr(code) for code in range(ord("A"), highest + 1) if chr(code) not in seen
+    ]
+    if missing:
+        warnings.append(
+            f"{prefix} panel letters are not contiguous (missing "
+            f"{', '.join(missing)}); verify against the source caption"
+        )
+
+
 def check_content(data: dict[str, Any], base_dir: Path) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -87,6 +204,8 @@ def check_content(data: dict[str, Any], base_dir: Path) -> dict[str, Any]:
             errors.append("field_positioning.paragraphs must not be empty")
         elif any(not clean_text(item) for item in paragraphs):
             errors.append("field_positioning.paragraphs must not contain empty entries")
+
+    check_materials(data, base_dir, errors, warnings)
 
     logic_chain = data.get("logic_chain")
     if not isinstance(logic_chain, list) or not logic_chain:
@@ -140,6 +259,18 @@ def check_content(data: dict[str, Any], base_dir: Path) -> dict[str, Any]:
                 kind = clean_text(block.get("kind")) or "figure"
                 label = clean_text(block.get("label"))
                 is_table = kind == "table" or label.lower().startswith("table")
+                block_object, title_parsed = check_block_label(
+                    block, prefix, errors, warnings
+                )
+                if not is_table:
+                    check_panel_coverage(
+                        panels,
+                        block_object,
+                        title_parsed,
+                        prefix,
+                        errors,
+                        warnings,
+                    )
                 for panel_index, panel in enumerate(panels, start=1):
                     panel_prefix = f"{prefix}.panel_explanations[{panel_index}]"
                     if isinstance(panel, str):
@@ -176,6 +307,12 @@ def check_content(data: dict[str, Any], base_dir: Path) -> dict[str, Any]:
     future = data.get("future_outlook")
     if future is not None and not isinstance(future, list):
         errors.append("future_outlook must be an array when present")
+    if "future_outlook" not in data and (data.get("limitations") or data.get("trends")):
+        warnings.append(
+            "legacy limitations/trends will be rendered as 未来展望 but are not "
+            "verified against the authors' Discussion/Conclusion; migrate them "
+            "to future_outlook with source locations"
+        )
 
     strings = list(collect_strings(data))
     for index, text in enumerate(strings, start=1):

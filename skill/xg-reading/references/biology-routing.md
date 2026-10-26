@@ -22,13 +22,21 @@ Use `structural-methods.md` when central claims depend on cryo-EM, crystallograp
 
 Use `translational-engineering.md` when central claims depend on biomaterials, drug delivery, nanomedicine, devices, animal therapy, pharmacology, biodistribution, safety, patient samples, cohorts, or clinical endpoints.
 
+## Micro/nano robotics and active delivery
+
+Use `micro-nano-robotics.md` when central claims depend on engineered micro- or nanoscale robots, motors, or swimmers; active propulsion or remote actuation; navigation and control; cargo loading and triggered release; active targeting; in vivo localization, accumulation, penetration, or clearance; or stimulus-responsive therapy delivered by an engineered system.
+
+Route to the module that governs the strongest mechanistic or outcome claim. When efficacy and safety dominate, add `translational-engineering.md` as the secondary module; when the biological response mechanism (immune activation, cellular uptake, signaling) is central, add `immunology-microbiology.md` or `molecular-cellular.md` instead.
+
 ## Hybrid studies
 
 Select the module that governs the strongest mechanistic or outcome claim as primary. Add one secondary module only for a distinct evidence layer. Examples:
 
 - single-cell discovery followed by CRISPR validation: omics primary, molecular secondary;
 - biomaterial therapy with immune mechanism: translational primary, immunology secondary;
-- cryo-EM interface plus cellular signaling: structural primary, molecular secondary.
+- cryo-EM interface plus cellular signaling: structural primary, molecular secondary;
+- magnetic microrobot for tumor delivery: micro/nano robotics primary, translational secondary;
+- microrobot-driven immune activation: micro/nano robotics primary, immunology secondary.
 
 Do not read all modules “for completeness”. Depth comes from applying the right module rigorously.
 
